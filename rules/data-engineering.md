@@ -19,7 +19,7 @@ Every table must be traceable to its source. Minimum lineage columns:
 ## DE-03: Schema Evolution
 
 - New columns: always allowed via `mergeSchema=True`
-- Type changes (`int` → `string`): always fail-safe — route affected records to quarantine
+- Type changes (`int` → `string`): always fail-safe — log affected record count and cast defensively
 - Column removals: never silently drop; update contract and bump schema version
 
 ## DE-04: Quality Gates
@@ -30,7 +30,7 @@ Every pipeline must define at least:
 3. Duplicate check on business keys
 4. At least one business rule validation (range, reference, format)
 
-Records failing quality checks go to a quarantine table (never silently dropped).
+Records failing quality checks are logged (count + reason) and dropped before writing. DQ assertions run in a separate `dq_<layer>_<source>.py` notebook using Great Expectations.
 
 ## DE-05: Immutable Bronze
 
@@ -52,8 +52,7 @@ try:
     result = call_api(endpoint)
 except Exception as e:
     logger.error(f"API call failed: {e}")
-    send_to_quarantine(record, reason=str(e))
-    raise  # or continue, depending on criticality
+    raise  # surface the failure — do not swallow IO errors silently
 ```
 Silent failures are forbidden.
 

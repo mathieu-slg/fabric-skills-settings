@@ -50,18 +50,13 @@ spark.sql(f"RESTORE TABLE {table_name} TO VERSION AS OF {version_number}")
 - **First successful run date**:
 - **Expected runtime**:
 - **Expected row count**:
-- **Expected quarantine rate**:
+- **Expected null PK drops**:
 - **Success indicator**: `✓ Pipeline Finished: Processed X records`
 - **Normal nbmon status**:
 
 ### Validation (run after each execution)
 
 ```sql
--- Check quarantine table.
-SELECT COUNT(*)
-FROM <table>_quarantine
-WHERE _batch_id = '<latest>';
-
 -- Check row count.
 SELECT COUNT(*)
 FROM <table>;
@@ -80,7 +75,7 @@ WHERE _ingest_timestamp IS NULL
 |---|---|---|
 | AnalysisException: table not found | Lakehouse ID mismatch | Check BRONZE/SILVER/GOLD_LAKEHOUSE_ID in `.env` |
 | 401 Unauthorized | Token expired | Run `fab auth login` |
-| Quarantine rate >5% | Schema change or sensitive data issue | Escalate to operator, inspect quarantine reasons, update contract/casting |
+| DQ notebook FAIL | Schema change, unexpected nulls, or sensitive data issue | Escalate to developer with failed GX expectation and batch ID |
 
 ### Recovery Steps
 
@@ -88,10 +83,10 @@ WHERE _ingest_timestamp IS NULL
 2. Fix root cause (see failure modes above).
 3. Re-run with the same batch parameters (idempotent).
 4. Run validation checks.
-5. Verify quarantine rate returns to the expected range.
+5. Run DQ notebook and verify all GX expectations pass.
 
 ## Validation Log
 
-| Date | Batch ID | Status | Records | Quarantine Rate | Notes |
+| Date | Batch ID | Status | Records | DQ Result | Notes |
 |---|---|---|---|---|---|
 | | | | | | |

@@ -4,7 +4,8 @@
 # Local Claude Code overrides (machine-specific)
 .claude/settings.local.json
 
-# Data (never commit)
+# Data and artifact dirs belong in the target repo (TARGET_REPO_PATH), not here.
+# These gitignores guard against accidental creation in the config wrapper.
 data/
 logs/
 
@@ -23,7 +24,8 @@ build/
 .venv/
 venv/
 
-# Compiled notebooks
+# Notebook source and build dirs belong in the target repo, not here
+src/
 fabric_notebooks/
 
 # Delta artifacts

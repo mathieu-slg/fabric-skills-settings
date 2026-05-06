@@ -26,8 +26,8 @@ description: Operate and maintain a Fabric data platform — orchestrate pipelin
 
 ## Maintenance Routine
 
-**Daily**: Check pipeline run status, triage failures, review quarantine tables  
-**Weekly**: Run VACUUM, check for schema drift, review slow jobs, check quarantine rate trends  
+**Daily**: Check pipeline run status, triage failures, review DQ notebook results  
+**Weekly**: Run VACUUM, check for schema drift, review slow jobs, review DQ trend reports  
 **Monthly**: Capacity review, access review, Key Vault secret rotation check, stale item audit
 
 ## Daily Checks
@@ -40,15 +40,7 @@ fab job list --workspace-id "$WORKSPACE_ID" --type Notebook
 nbmon status "$RUN_ID"
 ```
 
-Run this in the Fabric SQL endpoint for the relevant Lakehouse/Warehouse:
-
-```sql
-SELECT _batch_id, _quarantine_reason, COUNT(*) AS cnt
-FROM bronze_quarantine
-WHERE CAST(_ingest_timestamp AS DATE) = CURRENT_DATE
-GROUP BY _batch_id, _quarantine_reason
-ORDER BY cnt DESC;
-```
+Check DQ notebook run results in the Fabric portal (Activities → Notebook runs) or via `nbmon`.
 
 ## VACUUM Pattern
 

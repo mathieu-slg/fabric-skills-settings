@@ -41,10 +41,6 @@ log_step() { echo ""; echo "── $* ──────────────
 log_step "Folder Structure"
 
 dirs=(
-    "src/notebooks"
-    "fabric_notebooks"
-    "data/sandbox"
-    "data/landing"
     "logs"
     "skills/external"
     "memory/runbooks"
@@ -345,12 +341,24 @@ if [[ "${RUN_CHECKLIST}" == "true" ]]; then
         CHECKLIST_OK=false
     fi
 
-    # Local notebook sources exist
-    NOTEBOOK_COUNT=$(find "${SCRIPT_DIR}/src/notebooks" -name "*.py" 2>/dev/null | wc -l | tr -d ' ')
-    if [[ "${NOTEBOOK_COUNT}" -gt 0 ]]; then
-        log_ok "Local notebook sources found: ${NOTEBOOK_COUNT} in src/notebooks/"
+    # Target repo data and notebook directories
+    if [[ -n "${TARGET_REPO_PATH:-}" && -d "${TARGET_REPO_PATH}" ]]; then
+        for tdir in "data/sandbox" "data/landing" "src/notebooks"; do
+            if [[ ! -d "${TARGET_REPO_PATH}/${tdir}" ]]; then
+                mkdir -p "${TARGET_REPO_PATH}/${tdir}"
+                log_ok "Created: \$TARGET_REPO_PATH/${tdir}/"
+            else
+                log_info "Exists:  \$TARGET_REPO_PATH/${tdir}/"
+            fi
+        done
+        NOTEBOOK_COUNT=$(find "${TARGET_REPO_PATH}/src/notebooks" -name "*.py" 2>/dev/null | wc -l | tr -d ' ')
+        if [[ "${NOTEBOOK_COUNT}" -gt 0 ]]; then
+            log_ok "Notebook sources found: ${NOTEBOOK_COUNT} in \$TARGET_REPO_PATH/src/notebooks/"
+        else
+            log_warn "No .py notebook sources in \$TARGET_REPO_PATH/src/notebooks/ — add at least one before smoke testing"
+        fi
     else
-        log_warn "No .py notebook sources in src/notebooks/ — add at least one before smoke testing"
+        log_warn "TARGET_REPO_PATH not set or missing — skipping target repo directory check"
     fi
 
     echo ""

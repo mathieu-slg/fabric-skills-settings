@@ -1,78 +1,140 @@
 ---
 name: fabric-ingest
-description: Ingest local sandbox files (CSV, Parquet, JSON, Excel) into a Microsoft Fabric Lakehouse as Bronze Delta tables. Use when loading data from data/sandbox/ into the Bronze layer. Handles sanitization, lineage envelope injection, quarantine routing, and idempotent partition overwrite. Production connections to live systems are configured in Fabric Linked Services — not by agents.
+description: Ingest local sandbox files (CSV, Parquet, JSON, Excel) into a Microsoft Fabric Lakehouse as Bronze Delta tables. Use when loading data from the target repo's data/sandbox/ into the Bronze layer. Handles sanitization, lineage envelope injection, and idempotent partition overwrite. Production connections to live systems are configured in Fabric Linked Services — not by agents.
 ---
 
 # fabric-ingest
 
+## Separation of concerns — non-negotiable
+
+Each source produces **two notebooks**:
+
+| Notebook | Naming | Job |
+|---|---|---|
+| Ingestion | `bronze_<source>.py` | Read → sanitize → inject lineage → write all rows to Bronze. Nothing else. |
+| Data quality | `dq_bronze_<source>.py` | Run Great Expectations checks on the Bronze table. Fail the job if checks fail. |
+
+**Never mix DQ logic into the ingestion notebook.** Ingestion writes all rows unconditionally; DQ runs after and decides whether the batch is acceptable.
+
 ## MUST
 
-- Read source files from `data/sandbox/` — never from live databases or APIs directly
+- Read source files from `$TARGET_REPO_PATH/data/sandbox/` — in the **target repo**, not the config wrapper. Never read from live databases or APIs directly.
 - Apply sanitization barrier: load to RAM → mask/redact in RAM → write to Delta
-- Inject lineage envelope on every record: `_ingest_timestamp`, `_source_system`, `_batch_id`
+- Inject lineage envelope on every record: `_ingest_timestamp`, `_source_system`, `_batch_id`, `_ingest_date`
 - Use `mergeSchema=True` for schema evolution
-- Route malformed records to `<table>_quarantine` Delta table — never crash on bad data
-- Use `replaceWhere` (partition overwrite) for idempotent re-runs
+- Use `replaceWhere` (partition overwrite) for idempotent re-runs — write all rows, not a filtered subset
+- **Source contracts are Python `@dataclass` embedded in the notebook** (`# %% [contract]` cell) — never YAML files
+- **Downloads are Python notebooks** (`download_sources.py`) — never `.sh` scripts; use `mssparkutils` detection for Fabric vs local
+- **Thresholds belong in the DQ notebook's parameter cell**, not in the ingestion notebook
 
 ## PREFER
 
 - Append-only writes to Bronze (never UPDATE or DELETE)
 - Partition by `_ingest_date` for tables above ~100k rows
 - Delta Lake over raw files (ACID transactions, compression, schema enforcement)
-- Read column types explicitly — never trust inferred types from CSV
+- All columns as `StringType` at Bronze — Silver is responsible for casting
+- Read column types explicitly — never trust CSV type inference
 
 ## AVOID
 
 - Reading from any network path, database, or API endpoint
 - Writing raw unmasked data to any Delta table (sanitize first, always)
-- Overwriting Bronze partitions without `replaceWhere` (causes duplicates on re-run)
+- Any filtering, splitting, or conditional writes based on data quality — that belongs in the DQ notebook
 - `df.show()` or `print(df)` with sensitive columns
+
+## Notebook cell structure
+
+```
+# %% [parameters]      — source path override, ingest date override
+# %% [contract]        — BronzeContract @dataclass
+# %% [imports]         — os, uuid, datetime, pyspark imports
+# %% [schemas]         — StructType definitions (all StringType)
+# %% [helpers]         — add_lineage_envelope(), write_bronze()
+# %% [ingest]          — read → sanitize → envelope → write
+# %% [summary]         — print row counts, batch_id, table path
+```
 
 ## Key Pattern
 
 ```python
+# %% [parameters]
+SOURCE_PATH: str = ""        # blank = resolved from env
+INGEST_DATE_OVERRIDE: str = ""
+
+# %% [contract]
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class BronzeContract:
+    source_system: str
+    grain: str
+    primary_keys: list[str]
+    bronze_table: str
+    sensitive_fields: list[str]
+    sensitivity: str
+
+CONTRACT = BronzeContract(
+    source_system="ORDERS",
+    grain="one order line item",
+    primary_keys=["order_id"],
+    bronze_table="raw_orders",
+    sensitive_fields=[],
+    sensitivity="internal",
+)
+
+# %% [imports]
 import os, uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
+from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType, TimestampType
+from pyspark.sql.types import StructType, StructField, StringType
 
-batch_id = str(uuid.uuid4())
-ingest_ts = datetime.now(timezone.utc)
-source_system = "ORDERS"  # matches the SRC_<SYSTEM> identifier in .env
+spark = SparkSession.builder.getOrCreate()
+BATCH_ID = str(uuid.uuid4())
+INGEST_TS = datetime.now(timezone.utc)
+INGEST_DATE = (
+    datetime.fromisoformat(INGEST_DATE_OVERRIDE).date()
+    if INGEST_DATE_OVERRIDE else INGEST_TS.date()
+)
+SRC = SOURCE_PATH or os.environ.get("SRC_ORDERS_PATH", "/lakehouse/default/Files/orders.csv")
+BRONZE_PATH = f"abfss://bronze@onelake.dfs.fabric.microsoft.com/{os.environ['BRONZE_LAKEHOUSE_ID']}/Tables/{CONTRACT.bronze_table}"
 
-# Read from sandbox file
-source_path = os.environ["SRC_ORDERS_PATH"]  # e.g., ./data/sandbox/orders.csv
-
-schema = StructType([
-    StructField("order_id", IntegerType(), True),
-    StructField("customer_id", IntegerType(), True),
-    StructField("amount", StringType(), True),   # keep as string until Silver casting
-    StructField("order_date", StringType(), True),
+# %% [schemas]
+SCHEMA = StructType([
+    StructField("order_id",    StringType(), True),
+    StructField("customer_id", StringType(), True),
+    StructField("amount",      StringType(), True),
+    StructField("order_date",  StringType(), True),
 ])
 
-df = spark.read.format("csv").options(header=True).schema(schema).load(source_path)
+# %% [helpers]
+def add_lineage_envelope(df: DataFrame) -> DataFrame:
+    return (df
+        .withColumn("_ingest_timestamp", F.lit(INGEST_TS).cast("timestamp"))
+        .withColumn("_source_system",    F.lit(CONTRACT.source_system))
+        .withColumn("_batch_id",         F.lit(BATCH_ID))
+        .withColumn("_ingest_date",      F.lit(str(INGEST_DATE)).cast("date"))
+    )
 
-# Sanitize in RAM (mask PII before any write)
-df = sanitize(df)  # implement per source-contract sensitive_fields
+def write_bronze(df: DataFrame) -> None:
+    (df.write
+        .format("delta")
+        .option("mergeSchema", "true")
+        .option("replaceWhere", f"_ingest_date = '{INGEST_DATE}'")
+        .partitionBy("_ingest_date")
+        .mode("overwrite")
+        .save(BRONZE_PATH)
+    )
 
-# Inject lineage envelope
-df = (df
-    .withColumn("_ingest_timestamp", F.lit(ingest_ts).cast(TimestampType()))
-    .withColumn("_source_system", F.lit(source_system))
-    .withColumn("_batch_id", F.lit(batch_id))
-    .withColumn("_ingest_date", F.to_date(F.lit(ingest_ts)))
-)
+# %% [ingest]
+df = spark.read.format("csv").options(header=True, enforceSchema=True).schema(SCHEMA).load(SRC)
+df = add_lineage_envelope(df)
+write_bronze(df)
 
-# Write idempotently to Bronze
-bronze_path = f"abfss://bronze@onelake.dfs.fabric.microsoft.com/{os.environ['BRONZE_LAKEHOUSE_ID']}/Tables/raw_orders"
-
-(df.write
-    .format("delta")
-    .option("mergeSchema", "true")
-    .partitionBy("_ingest_date")
-    .mode("append")
-    .save(bronze_path)
-)
+# %% [summary]
+print(f"[OK] {CONTRACT.bronze_table}: {df.count()} rows written")
+print(f"     batch_id={BATCH_ID}  ingest_date={INGEST_DATE}")
+print(f"     path={BRONZE_PATH}")
 ```
 
 ## Supported Sandbox Sources
@@ -81,34 +143,20 @@ bronze_path = f"abfss://bronze@onelake.dfs.fabric.microsoft.com/{os.environ['BRO
 |---|---|
 | CSV | `spark.read.format("csv").options(header=True).schema(schema).load(path)` |
 | Parquet | `spark.read.format("parquet").load(path)` |
-| JSON (lines) | `spark.read.format("json").load(path)` |
-| Excel | read with `pandas.read_excel()` → convert to Spark DataFrame |
-
-## Quarantine Pattern
-
-```python
-from pyspark.sql import functions as F
-
-# Rows that fail validation go to quarantine, not to Bronze
-bad = df.filter(F.col("order_id").isNull())
-good = df.filter(F.col("order_id").isNotNull())
-
-bad = bad.withColumn("_quarantine_reason", F.lit("null primary key"))
-bad.write.format("delta").mode("append").save(quarantine_path)
-good.write.format("delta").mode("append").save(bronze_path)
-```
+| GeoJSON | `spark.read.format("json").option("multiLine","true").load(path)` then `explode(col("features"))` |
+| Excel | `pandas.read_excel()` → `spark.createDataFrame(pd_df)` |
 
 ## Mock Data
 
-If no source file exists, ask the developer to generate it:
 ```python
-# Developer generates with Faker — seed(42) for reproducibility
 from faker import Faker
-import pandas as pd
+import pandas as pd, os
 
 fake = Faker(); Faker.seed(42)
 rows = [{"order_id": i, "customer_id": fake.random_int(1, 500),
-         "amount": fake.pydecimal(2, 2, positive=True),
+         "amount": str(fake.pydecimal(2, 2, positive=True)),
          "order_date": fake.date_this_year().isoformat()} for i in range(1, 1001)]
-pd.DataFrame(rows).to_csv("data/sandbox/orders.csv", index=False)
+pd.DataFrame(rows).to_csv(
+    f"{os.environ['TARGET_REPO_PATH']}/data/sandbox/orders.csv", index=False
+)
 ```

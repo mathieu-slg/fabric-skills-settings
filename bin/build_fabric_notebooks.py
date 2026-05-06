@@ -7,8 +7,8 @@ Fabric metadata before using it in a real workspace.
 
 from __future__ import annotations
 
-import hashlib
 import json
+import os
 import re
 import uuid
 from pathlib import Path
@@ -18,8 +18,32 @@ from pathlib import Path
 _LOGICAL_ID_NAMESPACE = uuid.UUID("b1f4e6d2-8c3a-4f7e-9b2d-1a5c0e8f3d6a")
 
 
-NOTEBOOK_SOURCE_DIR = Path("src/notebooks")
-OUTPUT_DIR = Path("fabric_notebooks")
+def _load_env(root: Path) -> None:
+    env_file = root / ".env"
+    if not env_file.exists():
+        return
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        os.environ.setdefault(key.strip(), val.strip())
+
+
+_SCRIPT_ROOT = Path(__file__).resolve().parent.parent
+_load_env(_SCRIPT_ROOT)
+
+_target_raw = os.environ.get("TARGET_REPO_PATH", "")
+if not _target_raw:
+    raise SystemExit(
+        "TARGET_REPO_PATH is not set. Add it to .env before running this script."
+    )
+_TARGET = Path(_target_raw)
+if not _TARGET.is_dir():
+    raise SystemExit(f"TARGET_REPO_PATH={_target_raw!r} does not exist.")
+
+NOTEBOOK_SOURCE_DIR = _TARGET / "src" / "notebooks"
+OUTPUT_DIR = _TARGET / "fabric_notebooks"
 CELL_SEP = "# CELL ********************"
 META_BLOCK = """# METADATA ********************
 
@@ -72,11 +96,11 @@ def build_one(source_path: Path) -> Path:
 
 def main() -> None:
     if not NOTEBOOK_SOURCE_DIR.exists():
-        raise SystemExit("No src/notebooks/ directory found.")
+        raise SystemExit(f"No src/notebooks/ directory found under TARGET_REPO_PATH={_target_raw!r}.")
 
     sources = sorted(NOTEBOOK_SOURCE_DIR.glob("*.py"))
     if not sources:
-        raise SystemExit("No .py notebooks found under src/notebooks/.")
+        raise SystemExit(f"No .py notebooks found under {NOTEBOOK_SOURCE_DIR}.")
 
     for source in sources:
         print(f"wrote {build_one(source)}")

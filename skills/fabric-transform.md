@@ -1,6 +1,6 @@
 ---
 name: fabric-transform
-description: Transform Bronze data into Silver — clean, deduplicate, enforce schema, and MERGE into Delta tables. Use when you need to cast types, apply business rules, handle nulls, remove duplicates, or move data from raw ingestion to enterprise-ready Silver layer. Also handles quarantine routing for records that fail quality gates.
+description: Transform Bronze data into Silver — clean, deduplicate, enforce schema, and MERGE into Delta tables. Use when you need to cast types, apply business rules, handle nulls, or remove duplicates. DQ checks run in a separate dq_silver_<source>.py notebook using Great Expectations.
 ---
 
 # fabric-transform
@@ -9,9 +9,8 @@ description: Transform Bronze data into Silver — clean, deduplicate, enforce s
 
 - Cast all columns explicitly — never leave Bronze string types in Silver
 - Use Delta MERGE for upserts — never plain APPEND to Silver
-- Route records failing DQ gates to `<table>_quarantine` table
 - Preserve lineage envelope columns from Bronze
-- Validate primary keys — rows with null PKs must be dropped and quarantined
+- Log rows dropped due to null PKs — never drop silently
 
 ## PREFER
 
@@ -22,10 +21,11 @@ description: Transform Bronze data into Silver — clean, deduplicate, enforce s
 
 ## AVOID
 
-- Dropping records silently — always route to quarantine with a reason
+- Dropping records silently — always log a count and reason before dropping
 - Plain `df.write.mode("append")` in Silver (creates duplicates)
 - `df.show()` or `print(df)` in production notebooks
 - Zero-filling numeric nulls (hides data quality issues from downstream)
+- Any DQ assertion logic — that belongs in the separate `dq_silver_<source>.py` notebook
 
 ## MERGE Pattern
 
@@ -50,7 +50,7 @@ silver.alias("target").merge(
 from pyspark.sql import functions as F
 from pyspark.sql.types import IntegerType, TimestampType, DecimalType
 
-good_df = df.select(
+df_cast = df.select(
     F.col("order_id").cast(IntegerType()).alias("order_id"),
     F.col("order_date").cast(TimestampType()).alias("order_date"),
     F.col("amount").cast(DecimalType(18, 2)).alias("amount"),
@@ -59,20 +59,11 @@ good_df = df.select(
     F.col("_batch_id"),
 )
 
-# Quarantine rows that failed casting (nulls where not nullable)
-quarantine_df = good_df.filter(F.col("order_id").isNull())
-good_df = good_df.filter(F.col("order_id").isNotNull())
-```
-
-## DQ Gates
-
-```python
-def check_range(df, col, min_val, max_val):
-    bad = df.filter(~F.col(col).between(min_val, max_val))
-    good = df.filter(F.col(col).between(min_val, max_val))
-    return good, bad
-
-good_df, quarantine_age = check_range(good_df, "age", 0, 150)
+# Drop null PKs and log — DQ notebook (Great Expectations) asserts on Silver after the fact
+null_pk_count = df_cast.filter(F.col("order_id").isNull()).count()
+if null_pk_count > 0:
+    print(f"[WARN] Dropping {null_pk_count} rows with null order_id before Silver write")
+df_silver = df_cast.filter(F.col("order_id").isNotNull())
 ```
 
 ## Z-ORDER After Bulk Write

@@ -21,7 +21,7 @@ You validate independently. You never look at the developer's implementation bef
 | Null primary keys | `SELECT COUNT(*) WHERE pk IS NULL` |
 | Duplicates | `SELECT pk, COUNT(*) GROUP BY pk HAVING COUNT(*) > 1` |
 | Schema drift | Compare current schema to source contract |
-| Quarantine rate | Count rows in `*_quarantine` tables; flag if >5% |
+| DQ notebook result | Check that the `dq_bronze_*` / `dq_silver_*` notebook ran and passed |
 | Referential integrity | FK lookups; flag if >5% resolve to Unknown/-1 |
 | Metric sanity | Revenue ≥ 0, dates within expected range, required fields non-null |
 | Masking | Confirm PII fields are masked/redacted, not raw |
@@ -49,7 +49,7 @@ Always produce a structured validation report:
 - **Table**: <name>
 - **Batch ID**: <id>
 - **Records processed**: <n>
-- **Quarantine rate**: <n>%
+- **DQ notebook**: PASS / FAIL
 
 | Check | Status | Detail |
 |---|---|---|
@@ -64,7 +64,7 @@ Always produce a structured validation report:
 ## Escalation Rules
 
 - All checks pass → report PASS, notify orchestrator
-- Quarantine rate >5% → ESCALATE TO OPERATOR (possible PII/sensitive data issue)
+- DQ notebook FAIL → ESCALATE TO DEVELOPER with the failed expectation and batch ID
 - RI failures >5% → ESCALATE TO DEVELOPER (dimensional model gap)
 - Metric nulls or impossible values → ESCALATE TO DEVELOPER first, then OPERATOR if data is sensitive
 
@@ -77,7 +77,7 @@ After producing a validation report, update `memory/project.md`:
 **Pipeline**: <name>
 **Status**: PASS | FAIL | ESCALATED
 **Batch ID**: <id>
-**Records**: <n> processed, <n>% quarantine rate
+**Records**: <n> processed
 **Notes**: <any anomalies or escalation reason>
 ```
 

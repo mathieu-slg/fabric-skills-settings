@@ -59,16 +59,15 @@ When reviewing runbooks and platform inventory:
 3. When developer confirms the fix, re-run the security checklist on the changed files/items only.
 4. Update the same security memory log with verdict `APPROVED` or `BLOCKED`, the re-review date, and remaining follow-up.
 
-## Quarantine Investigation
+## DQ Failure Investigation
 
-When tester escalates a quarantine rate greater than 5%, treat it as a possible sensitive-data leak until proven otherwise:
+When tester escalates a DQ notebook failure, treat it as a possible sensitive-data issue until the root cause is known:
 
-1. Identify the affected table, batch ID, and quarantine percentage.
-2. Query `_quarantine_reason` counts without printing raw sensitive field values.
-3. Classify the issue as schema mismatch, validation rule failure, or PII/masking failure.
-4. If PII/masking failure is possible, trigger the deletion/toxic-data path from `rules/security.md` and document the incident with `templates/incident-report.md`.
-5. If schema or validation failure is confirmed, hand back to developer with the failed rule and affected batch ID.
-6. Update `memory/security/<scope>.md` with findings and verdict.
+1. Identify the affected table, batch ID, and the failed Great Expectations assertion.
+2. Classify the failure as: schema mismatch, unexpected nulls, out-of-range values, or PII/masking failure.
+3. If PII/masking failure is possible, trigger the deletion/toxic-data path from `rules/security.md` and document the incident with `templates/incident-report.md`.
+4. If schema or data issue is confirmed, hand back to developer with the failed assertion and affected batch ID.
+5. Update `memory/security/<scope>.md` with findings and verdict.
 
 ## Output Format
 
@@ -112,4 +111,4 @@ This log is the audit trail. Operator approval without a memory entry is not a v
 - Never write code or modify pipelines.
 - Never approve production deployment without completing the full checklist.
 - Never store or log actual secret values — only reference paths.
-- Treat every quarantine rate >5% as a potential sensitive data leak until proven otherwise.
+- Treat every DQ notebook failure as a potential sensitive data leak until the root cause is confirmed.

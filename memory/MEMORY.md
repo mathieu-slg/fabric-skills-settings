@@ -32,5 +32,5 @@ Keep entries dated and short. Lead with the fact, not the explanation.
 ```markdown
 <!-- YYYY-MM-DD -->
 **Pipeline**: orders-bronze
-**Status**: PASS — 14,832 rows, 0 null PKs, 0.3% quarantine rate
+**Status**: PASS — 14,832 rows, 0 null PKs, GX DQ: all expectations passed
 ```

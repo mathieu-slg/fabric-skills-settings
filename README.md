@@ -26,7 +26,7 @@ flowchart TD
 
     D -->|"handoff"| T
     T -->|"PASS"| O
-    T -->|"quarantine > 5%"| P
+    T -->|"DQ notebook FAIL"| P
     T -->|"RI failures"| D
     P -->|"BLOCKED — remediation list"| D
     P -->|"APPROVED"| O
@@ -56,7 +56,7 @@ sequenceDiagram
     Agent->>MCP: List items in workspace
     MCP-->>Agent: Item metadata + ID
     Agent->>Agent: Store name & ID in memory/platform.md
-    Agent->>Agent: Edit code locally  src/notebooks/*.py
+    Agent->>Agent: Edit code in $TARGET_REPO_PATH/src/notebooks/*.py
     Agent->>Sandbox: fab import  (deploy)
     Agent->>Sandbox: fab job run  (execute)
     Sandbox-->>Agent: Run ID
@@ -86,12 +86,12 @@ flowchart LR
 
     PASS(["✅ PASS\nnotify orchestrator"])
     ESC_D(["🔁 Escalate → developer\nRI failures · schema drift"])
-    ESC_O(["🚨 Escalate → operator\nquarantine > 5% · PII leak"])
+    ESC_O(["🚨 Escalate → operator\nDQ FAIL + PII suspicion"])
 
     SRC --> B --> S --> G --> DQ
     DQ -->|all checks pass| PASS
     DQ -->|RI / schema| ESC_D
-    DQ -->|quarantine / PII| ESC_O
+    DQ -->|DQ FAIL + PII suspicion| ESC_O
 ```
 
 ---

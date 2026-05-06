@@ -34,7 +34,7 @@ Usage:
   bin/smoke-test-sandbox.sh --notebook <name> [--workspace <workspace.Workspace>]
 
 Options:
-  --notebook   Name of the notebook (without extension) under src/notebooks/
+  --notebook   Name of the notebook (without extension) under \$TARGET_REPO_PATH/src/notebooks/
   --workspace  Fabric workspace path, e.g. "MySandbox.Workspace"
                Falls back to FABRIC_WORKSPACE_PATH in .env
 
@@ -46,7 +46,7 @@ Steps automated:
   6. Monitor via nbmon-sandbox
 
 Steps that remain human-run:
-  1. Create a local notebook under src/notebooks/ with synthetic data
+  1. Create a notebook under \$TARGET_REPO_PATH/src/notebooks/ with synthetic data
   7. Review notebook output for PII or credentials
 
 USAGE
@@ -89,12 +89,22 @@ fi
 
 NOTEBOOK_ITEM_PATH="${WORKSPACE_PATH}/${NOTEBOOK_NAME}.Notebook"
 
-# Check that a local notebook source file exists
-NOTEBOOK_SRC="${ROOT_DIR}/src/notebooks/${NOTEBOOK_NAME}.py"
+# Require TARGET_REPO_PATH
+if [[ -z "${TARGET_REPO_PATH:-}" ]]; then
+    log_err "TARGET_REPO_PATH is not set in .env — cannot locate notebook sources."
+    exit 2
+fi
+if [[ ! -d "${TARGET_REPO_PATH}" ]]; then
+    log_err "TARGET_REPO_PATH='${TARGET_REPO_PATH}' does not exist."
+    exit 2
+fi
+
+# Check that a notebook source file exists in the target repo
+NOTEBOOK_SRC="${TARGET_REPO_PATH}/src/notebooks/${NOTEBOOK_NAME}.py"
 if [[ ! -f "${NOTEBOOK_SRC}" ]]; then
-    log_err "Source file not found: src/notebooks/${NOTEBOOK_NAME}.py"
-    log_info "Create a local notebook first (step 1 — human-run):"
-    log_info "  src/notebooks/${NOTEBOOK_NAME}.py"
+    log_err "Source file not found: \$TARGET_REPO_PATH/src/notebooks/${NOTEBOOK_NAME}.py"
+    log_info "Create the notebook first (step 1 — human-run) in the target repo:"
+    log_info "  ${TARGET_REPO_PATH}/src/notebooks/${NOTEBOOK_NAME}.py"
     log_info "Then re-run this script."
     exit 2
 fi
@@ -111,14 +121,14 @@ echo "════════════════════════�
 
 log_step "Step 2 — Build notebooks"
 python3 "${SCRIPT_DIR}/build_fabric_notebooks.py"
-log_ok "Notebooks built → fabric_notebooks/"
+log_ok "Notebooks built → \$TARGET_REPO_PATH/fabric_notebooks/"
 
 # ── Step 3: Deploy to sandbox workspace ───────────────────────────────────
 
 log_step "Step 3 — Deploy to sandbox workspace"
-NOTEBOOK_PKG="${ROOT_DIR}/fabric_notebooks/${NOTEBOOK_NAME}.Notebook"
+NOTEBOOK_PKG="${TARGET_REPO_PATH}/fabric_notebooks/${NOTEBOOK_NAME}.Notebook"
 if [[ ! -d "${NOTEBOOK_PKG}" ]]; then
-    log_err "Built notebook package not found: fabric_notebooks/${NOTEBOOK_NAME}.Notebook"
+    log_err "Built notebook package not found: \$TARGET_REPO_PATH/fabric_notebooks/${NOTEBOOK_NAME}.Notebook"
     log_info "Check build_fabric_notebooks.py output above."
     exit 1
 fi

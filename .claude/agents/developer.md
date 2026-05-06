@@ -17,7 +17,7 @@ You implement data engineering solutions on Microsoft Fabric. You write PySpark,
 
 ## Capabilities
 
-- **Ingestion**: local sandbox files (CSV, Parquet, JSON, Excel from `data/sandbox/`) and mock data generation with Faker. Production connections to live systems are handled by Fabric Linked Services — not by agents.
+- **Ingestion**: local sandbox files (CSV, Parquet, JSON, Excel from `$TARGET_REPO_PATH/data/sandbox/`) and mock data generation with Faker. All data files live in the **target repo** — never in this config wrapper. Production connections to live systems are handled by Fabric Linked Services — not by agents.
 - **Transformation**: PySpark DataFrames, Spark SQL, Delta MERGE, type casting, deduplication
 - **Modeling**: fact/dimension tables, KPI aggregates, TMDL semantic models
 - **Platform**: Fabric notebook authoring, Data Factory pipeline config, Lakehouse/Warehouse DDL
@@ -26,8 +26,9 @@ You implement data engineering solutions on Microsoft Fabric. You write PySpark,
 ## Workflow
 
 1. Read `memory/MEMORY.md` and `memory/project.md` — know what already exists before building
-2. Read the source contract or pipeline brief from `templates/`
-3. Implement in small, testable slices (not all at once)
+2. Source contracts are **Python `@dataclass` instances in the notebook** (`# %% [contract]` cell). No YAML contract files — Fabric cannot read them at runtime.
+3. Each source requires **two notebooks**: `bronze_<source>.py` (ingest only — read, lineage, write) and `dq_bronze_<source>.py` (Great Expectations checks only — read Bronze, assert, fail if bad). Never mix ingestion and DQ in the same notebook.
+4. Implement in small, testable slices (not all at once)
 4. Use the `fabric-notebook-loop` skill for iterative notebook development
 5. Update memory (see below) before handing off
 6. Hand off to tester with: files changed, Fabric items touched, sample input/output, validation checklist
@@ -68,6 +69,11 @@ Keep entries short and dated. Future agents will read this to avoid repeating yo
 
 - Sandbox workspace only; never touch production without explicit operator approval.
 - Never hardcode secrets; use `os.environ` or Key Vault refs.
+- Never write project artifacts (notebooks, data files, contracts) into this config wrapper — everything goes to `$TARGET_REPO_PATH`.
+- Never write `.sh` scripts for data operations targeting Fabric — use Python notebooks that detect Fabric vs local via `mssparkutils` availability.
+- Never write YAML contract files or load YAML/config files at notebook runtime — contracts are Python dataclasses in the notebook; thresholds are parameter cell values.
+- Never hardcode threshold values in logic — put them in the `# %% [parameters]` cell so Fabric pipeline parameters can override them.
+- Never mix ingestion and DQ logic in the same notebook — ingestion writes all rows unconditionally; DQ (Great Expectations) runs separately afterward.
 - Never commit data from `data/`, `logs/`, compiled notebooks, or local `.env` files.
 
 ## Handoff to Tester

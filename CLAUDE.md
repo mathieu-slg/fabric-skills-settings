@@ -28,9 +28,9 @@ This repository is a configuration wrapper, not a Fabric workspace. It gives age
 | Persistent memory | `memory/MEMORY.md`, `memory/` | Always read the index and project state first; update memory for project, platform, decision, validation, and security changes. |
 | Rules | `rules/security.md`, `rules/data-engineering.md`, `rules/fabric-platform.md` | These apply to all roles. Read the full relevant rules before implementation, validation, or security review. |
 | Skills | `skills/*.md`, `skills/external/` | read the relevant skill file in `skills/` before starting related work. External packs are optional and installed with `bin/install-skills.sh`. |
-| Templates | `templates/` | Use source contracts, briefs, mock data, runbooks, release, DQ, incident, and security templates instead of inventing formats. |
-| Thresholds | `config/thresholds.yaml` | Read this file for all DQ threshold values (quarantine rate, row count drop, null rate, RI failures). Never hardcode thresholds. |
-| Tooling | `setup.sh`, `bin/build_fabric_notebooks.py`, `bin/fab-sandbox`, `bin/nbmon-sandbox`, `bin/install-skills.sh` | Prefer sandbox wrappers and the local `.py` → `.Notebook` build flow. |
+| Templates | `templates/` | **Blank forms only** — copy into `$TARGET_REPO_PATH/contracts/` (or equivalent) and fill in there. Never store project-specific contracts or data files in this config repo. |
+| Thresholds | `config/thresholds.yaml` | **Local reference only** — copy default values into notebook `# %% [parameters]` cells. Never load this file at Fabric notebook runtime. |
+| Tooling | `setup.sh`, `bin/build_fabric_notebooks.py`, `bin/fab-sandbox`, `bin/nbmon-sandbox`, `bin/install-skills.sh` | Prefer sandbox wrappers and the `.py` → `.Notebook` build flow. `bin/validate-agent-guidance.py` after guidance changes. |
 
 ---
 
@@ -40,7 +40,7 @@ Roadmap items were accepted where they reinforced the project purpose: a newcome
 - External skill discovery is documented as optional reference material; bundled `skills/` and `rules/` remain authoritative.
 - Skill usage wording says to read `SKILL.md` files instead of invoking aspirational slash commands.
 - Runbooks are split into Phase 1 (known before first run) and Phase 2 (observed after first successful run).
-- Quarantine escalation is treated as an operator investigation until schema, validation, or PII/masking root cause is known.
+- Ingestion and DQ are split: `bronze_<source>.py` ingests only; `dq_bronze_<source>.py` runs Great Expectations checks.
 
 ---
 
@@ -51,7 +51,7 @@ Roadmap items were accepted where they reinforced the project purpose: a newcome
 3. [ ] Create or identify the sandbox Fabric workspace and three lakehouses: `bronze_lh`, `silver_lh`, and `gold_lh`.
 4. [ ] Fill placeholder IDs in `.env`, then run `fab auth login` if the setup auth check is not authenticated.
 5. [ ] Register sandbox source placeholders as `SRC_<SYSTEM>_TYPE=file` and `SRC_<SYSTEM>_PATH=./data/sandbox/<file>.csv`.
-6. [ ] Validate source contracts with `python3 bin/validate-source-contract.py <contract.yaml>`.
+6. [ ] Source contracts are Python `@dataclass` instances in the `# %% [contract]` cell of each notebook — no YAML files needed.
 7. [ ] Use `docs/fabric-sandbox-smoke-test.md` and `docs/fabric-mcp-readonly-discovery.md` for human-run sandbox discovery/smoke checks.
 8. [ ] Start with the orchestrator: "I need to build a pipeline from [source] to [target]."
 
@@ -62,7 +62,7 @@ Agents must never ask for, receive, echo, or commit real credentials while helpi
 1. **Humans always create Fabric items.** Agents never create notebooks, pipelines, lakehouses, or any other Fabric item. The human creates the item in the portal first.
 2. **Agents wait for human input.** Before doing any Fabric-related work, the agent must receive the item name from the human. Do not proceed or guess item names.
 3. **Use the Fabric MCP tool to fetch items.** Once the human provides an item name, use the Fabric MCP read-only tools to look up the item and retrieve its content (e.g., notebook code). The agent stores item names and IDs in memory for reuse across sessions.
-4. **Agents may update code and configuration of existing sandbox items.** After fetching a notebook or pipeline via MCP, the agent may edit its code locally and deploy back via `fab-sandbox` or the `.py` → `.Notebook` build flow. Never target production items.
+4. **Agents may update code and configuration of existing sandbox items.** After fetching a notebook or pipeline via MCP, the agent edits code in `$TARGET_REPO_PATH/src/notebooks/` and deploys via `fab-sandbox` or the `.py` → `.Notebook` build flow. Never target production items. Never write notebook source files into this config repo.
 
 See `docs/fabric-mcp-readonly-discovery.md` for the full discovery sequence.
 
@@ -78,10 +78,10 @@ Each agent has tool restrictions enforced via frontmatter — they cannot exceed
 | `orchestrator` | Read, Glob, Grep | Scopes tasks, routes to specialists — never implements |
 | `developer` | Read, Write, Edit, Bash, Glob, Grep | All implementation: PySpark, SQL, notebooks, pipelines, mock data, repo maintenance |
 | `tester` | Read, Bash, Glob, Grep | Independent validation — never modifies data or code |
-| `operator` | Read, Bash, Glob, Grep | Security review: Key Vault, PII, access control, audit, quarantine escalation |
+| `operator` | Read, Bash, Glob, Grep | Security review: Key Vault, PII, access control, audit, DQ failure investigation |
 
 **Standard workflow**: orchestrator → developer → tester.
-**Add operator** for any task touching secrets, PII, access control, quarantine >5%, or production handoff.
+**Add operator** for any task touching secrets, PII, access control, or production handoff.
 
 ---
 
@@ -108,7 +108,7 @@ Core skills ship bundled. read the relevant skill file in `skills/` before start
 | Skill | Purpose |
 |---|---|
 | `skills/fabric-ingest.md` | Any source → Lakehouse/Warehouse ingestion |
-| `skills/fabric-transform.md` | Silver: cleaning, MERGE, type casting, quarantine |
+| `skills/fabric-transform.md` | Silver: cleaning, MERGE, type casting, log-and-drop |
 | `skills/fabric-model.md` | Gold: star schema, KPIs, referential integrity |
 | `skills/fabric-validate.md` | DQ checks, row counts, schema drift, anomalies |
 | `skills/fabric-notebook-loop.md` | Local `.py` → deploy → run → capture run ID → nbmon → fix cycle |
@@ -192,10 +192,9 @@ fab auth login                # authenticate once if setup says Fabric auth is n
 ## Project Structure
 
 ```
-fabric-skills-settings/
+fabric-skills-settings/        # configuration wrapper — no data artifacts here
 ├── CLAUDE.md                  # Claude Code instructions (this file)
 ├── AGENTS.md                  # Codex CLI instructions (agents inlined, self-contained)
-├── docs/context.md                 # Shared Fabric vocabulary
 ├── README.md                  # Human-facing overview
 ├── setup.sh                   # Bootstrap script (run once)
 │
@@ -203,23 +202,31 @@ fabric-skills-settings/
 │   ├── agents/                # orchestrator · developer · tester · operator
 │   └── settings.json          # Project-level tool permissions (committed)
 │
+├── config/
+│   └── thresholds.yaml        # DQ default values — local reference; copy to notebook parameters
+│
 ├── rules/
 │   ├── security.md
 │   ├── data-engineering.md
 │   └── fabric-platform.md
 │
-├── skills/
-│   ├── core/                  # 6 bundled skill packs
+├── skills/                    # 6 bundled skill packs (flat — no core/ subdirectory)
+│   ├── fabric-ingest.md
+│   ├── fabric-transform.md
+│   ├── fabric-model.md
+│   ├── fabric-validate.md
+│   ├── fabric-notebook-loop.md
+│   ├── fabric-ops.md
 │   └── external/              # Installed extensions (add via install-skills.sh)
 │
 ├── templates/                 # source-contract · pipeline-brief · mock-data · runbook · …
 │
 ├── bin/
 │   ├── install-skills.sh      # Extension manager
-│   ├── validate-source-contract.py # Source contract validator
+│   ├── validate-source-contract.py # Legacy — YAML contracts are banned; kept for reference
 │   ├── validate-agent-guidance.py # Guidance drift check
 │   ├── fabric-inventory-readonly # Human-run read-only inventory helper
-│   ├── build_fabric_notebooks.py  # .py → .Notebook converter
+│   ├── build_fabric_notebooks.py  # TARGET_REPO_PATH/src/notebooks/*.py → fabric_notebooks/
 │   ├── fab-sandbox            # Fabric CLI sandbox wrapper
 │   └── nbmon-sandbox          # Lightweight job monitor
 │
@@ -233,3 +240,5 @@ fabric-skills-settings/
     ├── runbooks/
     └── security/
 ```
+
+Notebooks, pipelines, and all Fabric artifacts live in the **target repository** (`TARGET_REPO_PATH`), not here.

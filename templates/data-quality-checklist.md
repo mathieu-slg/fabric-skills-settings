@@ -8,7 +8,7 @@ Environment: sandbox
 - [ ] Duplicate check at declared grain.
 - [ ] Primary/business key null check.
 - [ ] Schema drift check.
-- [ ] Quarantine/rejected rows reviewed.
+- [ ] DQ notebook (`dq_<layer>_<source>.py`) ran and all GX expectations passed.
 - [ ] Referential integrity checked where relevant.
 - [ ] Metrics reconcile to expected examples.
 - [ ] Sensitive fields masked, excluded, or protected.

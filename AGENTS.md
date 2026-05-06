@@ -29,10 +29,10 @@ This repository is a configuration wrapper, not a Fabric workspace. It gives age
 | Persistent memory | `memory/MEMORY.md`, `memory/` | Always read the index and project state first; update memory for project, platform, decision, validation, and security changes. |
 | Rules | `rules/security.md`, `rules/data-engineering.md`, `rules/fabric-platform.md` | These apply to all roles. Read the full relevant rules before implementation, validation, or security review. |
 | Skills | `skills/*.md`, `skills/external/` | read the relevant skill file in `skills/` before starting related work. External packs are installed with `bin/install-skills.sh`. |
-| Templates | `templates/` | Use source contracts, briefs, runbooks, release, DQ, incident, and security templates instead of inventing formats. |
-| Thresholds | `config/thresholds.yaml` | Read this file for all DQ threshold values (quarantine rate, row count drop, null rate, RI failures). Never hardcode thresholds. |
-| Tooling | `setup.sh`, `bin/validate-source-contract.py`, `bin/validate-agent-guidance.py`, `bin/fabric-inventory-readonly`, `bin/build_fabric_notebooks.py`, `bin/fab-sandbox`, `bin/nbmon-sandbox`, `bin/install-skills.sh` | Prefer local validators, human-run read-only discovery, sandbox wrappers, and the local `.py` → `.Notebook` build flow. |
-| Sandbox data | `data/sandbox/`, `data/landing/` | Created by `setup.sh` and gitignored. Never commit generated, source, or sensitive data files. |
+| Templates | `templates/` | **Blank forms only** — copy into `$TARGET_REPO_PATH/contracts/` and fill in there. Never store project-specific contracts or data in this config repo. |
+| Thresholds | `config/thresholds.yaml` | **Local reference only** — default values to copy into notebook parameter cells. Never load this file at Fabric notebook runtime. Expose threshold values as `# %% [parameters]` cell variables so Fabric pipeline parameters can override them. |
+| Tooling | `setup.sh`, `bin/validate-agent-guidance.py`, `bin/fabric-inventory-readonly`, `bin/build_fabric_notebooks.py`, `bin/fab-sandbox`, `bin/nbmon-sandbox`, `bin/install-skills.sh` | Prefer human-run read-only discovery, sandbox wrappers, and the `.py` → `.Notebook` build flow. |
+| Project artifacts | `$TARGET_REPO_PATH/` | **All project-specific files go here**: notebooks (`src/notebooks/`), data (`data/sandbox/`, `data/landing/`), filled contracts (`contracts/`), and runbooks. Nothing project-specific is created in this config wrapper. |
 
 ---
 
@@ -42,7 +42,7 @@ Roadmap items were accepted where they reinforced the project purpose: a newcome
 - External skill discovery is documented as optional reference material; bundled `skills/` and `rules/` remain authoritative.
 - Skill usage wording says to read `SKILL.md` files instead of invoking aspirational slash commands.
 - Runbooks are split into Phase 1 (known before first run) and Phase 2 (observed after first successful run).
-- Quarantine escalation is treated as an operator investigation until schema, validation, or PII/masking root cause is known.
+- Ingestion and DQ are split: `bronze_<source>.py` ingests only; `dq_bronze_<source>.py` runs Great Expectations checks.
 - Remaining in-scope sprints added source-contract validation, human-run Fabric sandbox smoke guidance, MCP/read-only discovery guidance, and an agent guidance drift check. Out-of-scope CI, negative-case expansion, and production handoff sprints are not part of this roadmap.
 
 ---
@@ -56,7 +56,7 @@ To get started:
 4. Create or identify the sandbox Fabric workspace and three lakehouses: `bronze_lh`, `silver_lh`, and `gold_lh`.
 5. Fill placeholder IDs in `.env`, then run `fab auth login` if the setup auth check is not authenticated.
 6. Register sandbox source placeholders as `SRC_<SYSTEM>_TYPE=file` and `SRC_<SYSTEM>_PATH=./data/sandbox/<file>.csv`.
-7. Validate source contracts with `python3 bin/validate-source-contract.py <contract.yaml>` before implementation.
+7. Source contracts are Python `@dataclass` instances in the notebook's `# %% [contract]` cell — no YAML files to create or validate.
 8. For real sandbox checks, follow `docs/fabric-sandbox-smoke-test.md`; for MCP/read-only discovery, follow `docs/fabric-mcp-readonly-discovery.md`.
 9. Start with the orchestrator: *"I need to build a pipeline from [source] to [target]."*
 
@@ -89,7 +89,7 @@ You operate as one of four specialist roles. The user will address a role by nam
 - Read project memory at session start.
 - For any pipeline request, check registered source systems in `memory/platform.md` before scoping.
 - If the source is new or the source table is empty, ask one question at a time, starting with: "Do you have a CSV/file ready, or do you need mock data generated?"
-- If mock data is needed, route to developer to generate it from `templates/mock-data-generator.py` with Faker seed `42`, save it under `data/sandbox/`, register the source in memory, and add `SRC_<SYSTEM>_*` placeholders to `.env` or `.env.example` as appropriate.
+- If mock data is needed, route to developer to generate it using `templates/mock-data-generator.py` as a reference pattern, save the output under `$TARGET_REPO_PATH/data/sandbox/`, register the source in memory, and add `SRC_<SYSTEM>_*` placeholders to `.env` or `.env.example` as appropriate.
 - Confirm target lakehouse/warehouse, expected output, constraints, and sensitive fields.
 - Route to the right specialist (see table below).
 - After work completes, remind agents to update memory.
@@ -121,10 +121,11 @@ You operate as one of four specialist roles. The user will address a role by nam
 - Read `rules/security.md`, `rules/data-engineering.md`, and `rules/fabric-platform.md` before Fabric or data work.
 - Read the relevant skill file from `skills/` before starting related work.
 - Implement in small, testable slices.
-- Validate source contracts with `python3 bin/validate-source-contract.py <contract.yaml>` before building from a declared contract.
+- Source contracts are **Python `@dataclass` instances embedded in each notebook** (`# %% [contract]` cell). Never write YAML contract files — Fabric cannot read them at runtime.
+- Each source requires **two notebooks**: `bronze_<source>.py` (ingest only — read, lineage envelope, write all rows) and `dq_bronze_<source>.py` (Great Expectations checks — read Bronze, assert, fail if bad). Never mix ingestion and DQ in the same notebook.
 - Run `python3 bin/validate-agent-guidance.py` after changing AGENTS/CLAUDE/sub-agent/skill guidance.
 - Use `bin/fabric-inventory-readonly` only as a human-run read-only helper; never auto-write discovered IDs to `.env` or memory.
-- Use the closed-loop notebook workflow for Fabric notebooks: author under `src/notebooks/*.py` → run `python3 bin/build_fabric_notebooks.py` → import with `fab` or `bin/fab-sandbox` → run → inspect with `nbmon` or `bin/nbmon-sandbox` → fix → repeat.
+- Use the closed-loop notebook workflow for Fabric notebooks: author under `$TARGET_REPO_PATH/src/notebooks/*.py` → run `python3 bin/build_fabric_notebooks.py` (reads `TARGET_REPO_PATH` from `.env`) → import with `fab` or `bin/fab-sandbox` → run → inspect with `nbmon` or `bin/nbmon-sandbox` → fix → repeat. Never write notebook source files into this config repo.
 - Update memory before handoff: `platform.md` for new Fabric items or source systems, `project.md` for pipeline status, `decisions.md` for non-obvious choices, and `runbooks/` for scheduled pipelines.
 - For new source systems, write placeholder-only `SRC_<SYSTEM>_TYPE` and `SRC_<SYSTEM>_PATH` entries to `.env` or `.env.example`; never fill in real values.
 - Hand off to tester with files changed, Fabric items touched, run command, expected output, validation checklist, and known limits.
@@ -144,6 +145,11 @@ You operate as one of four specialist roles. The user will address a role by nam
 **Hard limits**:
 - Sandbox workspace only; never touch production without explicit operator approval.
 - Never hardcode secrets; use `os.environ` or Key Vault refs.
+- Never write project artifacts (notebooks, data files, contracts) into this config wrapper — everything goes to `$TARGET_REPO_PATH`.
+- Never write `.sh` scripts for data operations targeting Fabric — use Python notebooks that detect Fabric vs local via `mssparkutils` availability.
+- Never hardcode threshold values in logic — put them in the `# %% [parameters]` cell so Fabric pipeline parameters can override them.
+- Never mix ingestion and DQ logic in the same notebook — ingestion writes all rows unconditionally; DQ (Great Expectations) runs separately afterward.
+- Never write YAML contract files or load YAML/config files at notebook runtime — contracts are Python dataclasses in the notebook; thresholds are parameter cell values.
 - Never commit data from `data/`, `logs/`, compiled notebooks, or local `.env` files.
 
 ---
@@ -167,7 +173,7 @@ You operate as one of four specialist roles. The user will address a role by nam
 | Null primary keys | any found |
 | Duplicates on business key | any found |
 | Schema drift vs. source contract | any unplanned column added/removed |
-| Quarantine rate | >5% |
+| GX DQ result | notebook FAIL |
 | Referential integrity (Gold) | >5% resolve to Unknown/-1 |
 | Metric sanity | revenue <0, impossible dates, required fields null |
 | PII masking | any raw sensitive field found |
@@ -175,7 +181,7 @@ You operate as one of four specialist roles. The user will address a role by nam
 
 **Escalation**:
 - All pass → PASS, notify orchestrator.
-- Quarantine >5% → ESCALATE TO OPERATOR (possible data leak).
+- GX DQ notebook FAIL → ESCALATE TO DEVELOPER with failed expectation and batch ID.
 - RI failures >5% → ESCALATE TO DEVELOPER.
 - Metric nulls → ESCALATE TO DEVELOPER first, then OPERATOR if data is sensitive.
 
@@ -211,11 +217,10 @@ You operate as one of four specialist roles. The user will address a role by nam
 3. Re-review changed files/items after developer fixes.
 4. Update the same security memory log with final verdict and date.
 
-**Quarantine investigation**:
-- For quarantine rate >5%, query `_quarantine_reason` counts without printing raw sensitive values.
-- Classify as schema mismatch, validation failure, or PII/masking failure.
+**DQ failure investigation**:
+- When tester escalates a DQ notebook failure, classify it as schema mismatch, unexpected nulls, out-of-range values, or PII/masking failure.
 - If PII/masking is possible, trigger the deletion/toxic-data path from `rules/security.md` and document with `templates/incident-report.md`.
-- Otherwise hand back to developer with failed rule and affected batch ID.
+- Otherwise hand back to developer with the failed assertion and affected batch ID.
 
 **Security checklist**:
 - [ ] No credentials, passwords, tokens, API keys, or connection strings hardcoded.
@@ -235,7 +240,7 @@ You operate as one of four specialist roles. The user will address a role by nam
 - Never write code or modify pipelines.
 - Never approve production deployment without completing the full checklist.
 - Never store or log actual secret values — only reference paths.
-- Treat every quarantine rate >5% as a potential sensitive data leak until proven otherwise.
+- Treat every DQ notebook failure as a potential sensitive data leak until the root cause is confirmed.
 
 ---
 
@@ -313,7 +318,7 @@ Read these files — they apply to all agents:
 
 Core skills in `skills/` — read the relevant skill file in `skills/` before starting related work:
 - `fabric-ingest` — ingestion patterns, sanitization barrier, lineage envelope.
-- `fabric-transform` — Silver MERGE, type casting, DQ gates, quarantine.
+- `fabric-transform` — Silver MERGE, type casting, log-and-drop for bad rows.
 - `fabric-model` — Gold star schema, KPIs, referential integrity, ZORDER.
 - `fabric-validate` — DQ check SQL/PySpark templates, anomaly thresholds.
 - `fabric-notebook-loop` — closed-loop notebook dev cycle.
@@ -347,29 +352,33 @@ Then start with: *"I need to build a pipeline from [source] to [target]"*
 ## Project Structure
 
 ```
-fabric-skills-settings/
+fabric-skills-settings/            # configuration wrapper — no data artifacts here
 ├── AGENTS.md                      # Codex instructions (this file)
 ├── CLAUDE.md                      # Claude Code instructions
-├── docs/context.md                     # Shared Fabric vocabulary
 ├── README.md                      # Human-facing overview
 ├── setup.sh                       # Bootstrap script
 ├── .env.example                   # Placeholder-only environment template
 ├── .claude/
 │   ├── agents/                    # orchestrator · developer · tester · operator
 │   └── settings.json              # Claude Code tool permissions
+├── config/
+│   └── thresholds.yaml            # DQ default values — local reference; copy to notebook parameters
 ├── memory/                        # Persistent agent memory (local — gitignored)
 │   ├── MEMORY.md                  # Memory index
 │   ├── project.md / platform.md / decisions.md
 │   ├── runbooks/                  # One .md per scheduled pipeline
 │   └── security/                  # Key Vault refs, access decisions
 ├── bin/
-│   ├── build_fabric_notebooks.py  # src/notebooks/*.py → fabric_notebooks/*.Notebook
+│   ├── build_fabric_notebooks.py  # $TARGET_REPO_PATH/src/notebooks/*.py → fabric_notebooks/
 │   ├── fab-sandbox                # Sandbox-focused Fabric CLI wrapper
 │   ├── nbmon-sandbox              # Sandbox-focused notebook monitor wrapper
 │   └── install-skills.sh          # External skill pack manager
 ├── rules/                         # Security, data engineering, Fabric platform rules
-├── skills/
-│   ├── core/                      # Bundled Fabric skills
+├── skills/                        # Bundled Fabric skills (flat — no core/ subdirectory)
+│   ├── fabric-ingest.md / fabric-transform.md / fabric-model.md
+│   ├── fabric-validate.md / fabric-notebook-loop.md / fabric-ops.md
 │   └── external/                  # Installed extensions (gitignored except .gitkeep)
-├── templates/                     # Briefs, contracts, mock data, runbooks, checks, reviews
+├── templates/                     # Blank forms only — copy to $TARGET_REPO_PATH, never fill in here
 ```
+
+Notebooks, pipelines, and all Fabric artifacts live in the **target repository** (`TARGET_REPO_PATH`), not here.
