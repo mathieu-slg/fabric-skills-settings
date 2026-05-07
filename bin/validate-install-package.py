@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# ///
 """Validate vendor-native Fabric agent profile package layout."""
 
 from __future__ import annotations

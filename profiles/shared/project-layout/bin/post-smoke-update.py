@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# ///
 """post-smoke-update.py — Record sandbox smoke test results in agent memory.
 
 Automates the memory update section of docs/fabric-sandbox-smoke-test.md:

@@ -59,7 +59,7 @@ if [[ ! -f "$NOTEBOOK_SRC" ]]; then
 fi
 
 echo "── Build notebook packages"
-python3 "${PROJECT_ROOT}/bin/build_fabric_notebooks.py"
+uv run "${PROJECT_ROOT}/bin/build_fabric_notebooks.py"
 
 if [[ ! -d "$NOTEBOOK_PKG" ]]; then
   echo "Built notebook package not found: fabric_notebooks/${NOTEBOOK_NAME}.Notebook" >&2

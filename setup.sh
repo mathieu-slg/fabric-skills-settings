@@ -74,7 +74,6 @@ check_tool() {
   fi
 }
 
-check_tool "Python" python3 "install Python 3.10+" || true
 check_tool "Git" git "install Git" || true
 if ! check_tool "uv" uv "optional: install from https://astral.sh/uv" && [[ "$INSTALL_TOOLS" == "true" ]]; then
   curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -90,8 +89,8 @@ for script in "${SCRIPT_DIR}/bin/"*; do
 done
 
 log_step "Validation"
-python3 "${SCRIPT_DIR}/bin/validate-install-package.py"
-python3 "${SCRIPT_DIR}/bin/validate-agent-guidance.py"
+uv run "${SCRIPT_DIR}/bin/validate-install-package.py"
+uv run "${SCRIPT_DIR}/bin/validate-agent-guidance.py"
 
 cat <<'NEXT'
 

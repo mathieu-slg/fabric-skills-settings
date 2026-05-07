@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# ///
 """Build simple Fabric .Notebook folders from local # %% Python sources.
 
 This utility is intentionally minimal and sandbox-oriented. Review and adapt

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# ///
 """Validate source-package guidance for the vendor-native installer setup."""
 
 from __future__ import annotations

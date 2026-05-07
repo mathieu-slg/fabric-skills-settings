@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# ///
 """Install vendor-native Fabric agent profiles into a target repository."""
 
 from __future__ import annotations
@@ -84,8 +87,14 @@ def collect_shared_files() -> list[tuple[Path, Path, bool]]:
 
 
 def render_content(src: Path, managed: bool) -> str:
-    content = src.read_text()
+    content = src.read_text(encoding="utf-8")
     if managed and src.suffix in {".md", ""}:
+        if content.startswith("---\n"):
+            close = content.find("\n---\n", 4)
+            if close != -1:
+                frontmatter = content[: close + 5]   # up to and including closing ---\n
+                body = content[close + 5 :]
+                return f"{frontmatter}{MANAGED_BEGIN}\n{body.rstrip()}\n{MANAGED_END}\n"
         return f"{MANAGED_BEGIN}\n{content.rstrip()}\n{MANAGED_END}\n"
     return content
 
@@ -93,7 +102,7 @@ def render_content(src: Path, managed: bool) -> str:
 def has_managed_marker(path: Path) -> bool:
     if not path.exists() or not path.is_file():
         return False
-    text = path.read_text(errors="ignore")
+    text = path.read_text(encoding="utf-8", errors="ignore")
     return MANAGED_BEGIN in text and MANAGED_END in text
 
 
@@ -109,14 +118,14 @@ def write_file(src: Path, dest: Path, managed: bool, args: argparse.Namespace) -
     if args.check:
         if not dest.exists():
             return f"MISSING {dest}"
-        current = dest.read_text(errors="ignore")
+        current = dest.read_text(encoding="utf-8", errors="ignore")
         if current != content:
             return f"DIFF {dest}"
         return f"OK {dest}"
 
     action = "CREATE"
     if dest.exists():
-        current = dest.read_text(errors="ignore")
+        current = dest.read_text(encoding="utf-8", errors="ignore")
         if current == content:
             return f"UNCHANGED {dest}"
         if not args.force and not has_managed_marker(dest):
@@ -130,26 +139,38 @@ def write_file(src: Path, dest: Path, managed: bool, args: argparse.Namespace) -
     if dest.exists() and args.backup:
         backup = backup_file(dest)
         print(f"BACKUP {dest} -> {backup}")
-    dest.write_text(content)
+    dest.write_text(content, encoding="utf-8")
     if os.access(src, os.X_OK):
         dest.chmod(0o755)
     return f"{action} {dest}"
 
 
-def merge_gitignore(target: Path, args: argparse.Namespace) -> str:
+_PROFILE_IGNORES: dict[str, list[str]] = {
+    "shared": ["bin/", "contracts/", "data/", "memory/", "runbooks/"],
+    "codex": ["AGENTS.md", ".agents/", ".codex/"],
+    "claude": ["CLAUDE.md", ".claude/"],
+}
+
+
+def merge_gitignore(target: Path, profiles: list[str], args: argparse.Namespace) -> str:
     src = PROFILES / "shared" / ".gitignore.fragment"
-    fragment = src.read_text().rstrip()
+    lines = [src.read_text(encoding="utf-8").rstrip()]
+    profile_entries = [e for p in ["shared"] + profiles for e in _PROFILE_IGNORES.get(p, [])]
+    if profile_entries:
+        lines.append("\n# Installed agent profiles")
+        lines.extend(profile_entries)
+    fragment = "\n".join(lines)
     block = f"{GITIGNORE_BEGIN}\n{fragment}\n{GITIGNORE_END}\n"
     dest = target / ".gitignore"
 
     if args.check:
         if not dest.exists():
             return "MISSING .gitignore managed block"
-        text = dest.read_text(errors="ignore")
+        text = dest.read_text(encoding="utf-8", errors="ignore")
         return "OK .gitignore" if block in text else "DIFF .gitignore managed block"
 
     if dest.exists():
-        text = dest.read_text(errors="ignore")
+        text = dest.read_text(encoding="utf-8", errors="ignore")
         if block in text:
             return "UNCHANGED .gitignore"
         if GITIGNORE_BEGIN in text and GITIGNORE_END in text:
@@ -166,7 +187,7 @@ def merge_gitignore(target: Path, args: argparse.Namespace) -> str:
 
     if args.dry_run:
         return action
-    dest.write_text(new_text)
+    dest.write_text(new_text, encoding="utf-8")
     return action
 
 
@@ -190,7 +211,7 @@ def main() -> int:
             operations.append(f"KEEP existing {dest}")
             continue
         operations.append(write_file(src, dest, managed, args))
-    operations.append(merge_gitignore(target, args))
+    operations.append(merge_gitignore(target, planned_profiles(args.profile), args))
 
     for operation in operations:
         print(operation)

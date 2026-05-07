@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# ///
 """Validate Fabric Codex source-contract YAML shape without external dependencies.
 
 This validator intentionally checks the subset used by this wrapper's contract
