@@ -176,22 +176,24 @@ The developer never uses the Fabric portal to edit notebooks. All changes happen
 ```mermaid
 sequenceDiagram
     actor Human
-    participant Portal as Fabric Portal
     participant Dev as developer agent
     participant Build as tool/notebook/build.py
     participant Deploy as tool/notebook/deploy.py
     participant Smoke as smoke-test.ps1 / smoke-test.sh
 
-    Human->>Portal: Create notebook item in sandbox workspace
-    Human->>Dev: "notebook [name], set FABRIC_WORKSPACE_ID in .env"
-    Dev->>Dev: Author / edit workspace/<name>.py using # %% cell markers
+    Note over Human: One-time setup (workstation)
+    Human->>Human: Set FABRIC_WORKSPACE_ID in .env
+    Human->>Human: fab-sandbox auth login
+    Note over Human: Per-task
+    Human->>Dev: "build notebook [name]"
+    Dev->>Dev: Author / edit workspace/<topic>/<name>.py using # %% cell markers
 
     Note over Dev,Deploy: Deploy once per source change
     Dev->>Build: python tool/notebook/build.py
-    Build-->>Dev: fabric_notebooks/<name>.Notebook
+    Build-->>Dev: fabric_notebooks/<topic>/<name>.Notebook
 
     Dev->>Deploy: python tool/notebook/deploy.py deploy <name> <workspace_id>
-    Deploy-->>Dev: create/update OK
+    Deploy-->>Dev: create/update OK (notebook created in Fabric if new)
 
     Note over Dev,Smoke: Smoke test — triggers existing notebook, never deploys
     Dev->>Smoke: Windows: tool\notebook\smoke-test.ps1 -Notebook <name><br/>Linux/Mac: tool/notebook/smoke-test.sh --notebook <name>
@@ -202,7 +204,8 @@ sequenceDiagram
 
     alt STATUS: Completed
         Dev->>Deploy: deploy.py fetch <name> <workspace_id>
-        Dev->>Dev: git commit workspace/<name>.Notebook/ · handoff to tester
+        Dev->>Dev: git rm workspace/<topic>/<name>.py
+        Dev->>Dev: git add workspace/<topic>/<name>.Notebook/ · git commit · handoff to tester
     else STATUS: Failed or unclear
         Dev->>Human: Report FAIL + failureReason · await approval
         Human-->>Dev: Approve next run
