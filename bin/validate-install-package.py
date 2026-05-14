@@ -184,7 +184,12 @@ def validate_load_env_strips_comments(errors: list[str]) -> None:
 
 
 def validate_gitignore_fragment(errors: list[str]) -> None:
-    """gitignore.fragment must ignore tool/ and must not hide installed operational assets."""
+    """gitignore.fragment must ignore target-local runtime files.
+
+    The source package tracks profiles/shared/project-layout/.mcp.json so the
+    installer can create it, but target projects should ignore the installed
+    .mcp.json because MCP settings are local runtime configuration.
+    """
     path = PROFILES / "shared" / ".gitignore.fragment"
     if not path.exists():
         return
@@ -194,10 +199,10 @@ def validate_gitignore_fragment(errors: list[str]) -> None:
             "profiles/shared/.gitignore.fragment must ignore tool/"
             " — agent tooling is installed by the package manager, not committed by humans"
         )
-    if ".mcp.json" in text:
+    if ".mcp.json" not in text:
         errors.append(
-            "profiles/shared/.gitignore.fragment ignores .mcp.json"
-            " — this is an installed tracked asset and must not be ignored"
+            "profiles/shared/.gitignore.fragment must ignore .mcp.json"
+            " — MCP settings are installed for local target runtime use"
         )
 
 
