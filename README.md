@@ -1,126 +1,43 @@
 # Fabric Agent Pack
 
-Vendor-native Codex and Claude Code profiles for Microsoft Fabric data engineering.
+Vendor-native **Codex** and **Claude Code** profiles for Microsoft Fabric data engineering.
 
-This repository is an installer/source package. It should not be used as the day-to-day Fabric project workspace. Install one or both profiles into the actual project repository, then open Codex or Claude Code from that target repository root.
+Fabric Agent Pack turns a normal git repository into a guided Microsoft Fabric project workspace. It installs agent instructions, specialized skills, setup scripts, validation tools, and notebook deployment helpers so humans can ask for Fabric data engineering work while agents follow a consistent, auditable workflow.
 
-## How it works
+> This repository is the **source package and installer**, not the day-to-day Fabric project workspace. Install a profile into your actual project repository, then run Codex or Claude Code from that target repository root.
 
-```mermaid
-flowchart TD
-    H(["👤 Human"])
+## Why use it?
 
-    subgraph Source["fabric-skills-settings  —  this repo"]
-        INST["🔧 install-fabric-agent\nprofile installer"]
-    end
+- **Vendor-native profiles** — Codex and Claude each get their own native instructions, agents, skills, and settings.
+- **Fabric-first notebook loop** — agents author local `workspace/<topic>/*.py` notebook sources, build Fabric notebook bundles, deploy through the Fabric REST API, and smoke-test existing notebooks.
+- **Human-controlled execution** — agents report status through an orchestrator pattern, pause on unclear failures, and keep security reviews separate from implementation.
+- **Data-quality by design** — ingestion and DQ notebooks stay separate, with Great Expectations-oriented validation for bronze, silver, and gold layers.
+- **Portable project scaffolding** — target repositories receive shared `memory/`, `workspace/`, `contracts/`, `data/sandbox/`, `runbooks/`, and `tool/` folders.
 
-    subgraph Target["Target Repo  —  runtime workspace"]
-        O["🎯 orchestrator\nCentral hub · reads memory/ first\nRoutes all work · receives all results\nNever implements · never writes code\nTools: Read Glob Grep"]
+## What gets installed?
 
-        D["🛠 developer\nworkspace/*.py with # %% cells\ntool/notebook/build.py → deploy.py → monitor\nReports to orchestrator only\nTools: Read Write Edit Bash Glob Grep"]
+| Profile | Installed into target repo |
+|---|---|
+| Codex | `AGENTS.md`, `.agents/skills/*/SKILL.md`, `.codex/agents/*.toml`, `.codex/config.toml` |
+| Claude | `CLAUDE.md`, `.claude/skills/*/SKILL.md`, `.claude/agents/*.md`, `.claude/settings.json` |
+| Shared | `memory/`, placeholder `.env.example`, managed `.gitignore` block, `workspace/`, `data/sandbox/`, `contracts/`, `runbooks/`, `tool/` tooling |
 
-        T["🔍 tester\nValidates independently · Great Expectations per layer\nNull PKs · dupes · schema drift · RI · PII · lineage\nReports to orchestrator only\nTools: Read Bash Glob Grep"]
+The only shared runtime state between vendor profiles is `memory/`. Runtime Codex assets stay under `profiles/codex/`; runtime Claude assets stay under `profiles/claude/`.
 
-        P["🔒 operator\nRead-only security review · never modifies code\nSecrets · masking · least-privilege · RLS/OLS\nReports to orchestrator only\nTools: Read Bash Glob Grep"]
+## Quick start
 
-        M[("💾 memory/\nMEMORY.md · notebook-authoring.md\nRTK.md · &lt;topic&gt;/project.md")]
-    end
+### 1. Prepare this source package
 
-    FABRIC["☁️ Fabric Workspace\nsandbox only"]
+From this repository root:
 
-    H -->|"install profiles"| INST
-    INST -->|"CLAUDE.md · AGENTS.md · skills/ · agents/"| Target
-
-    H -->|"request"| O
-    O -.->|"reads at session start"| M
-
-    O -->|"build · implement · fix · migrate"| D
-    O -->|"test · validate · DQ · anomaly"| T
-    O -->|"secrets · PII · access · prod handoff"| P
-
-    D -->|"done → report to orchestrator"| O
-    D -->|"blocked on secrets/PII → report to orchestrator"| O
-    T -->|"PASS → report to orchestrator"| O
-    T -->|"FAIL → report to orchestrator"| O
-    P -->|"APPROVED → report to orchestrator"| O
-    P -->|"BLOCKED + remediation → report to orchestrator"| O
-
-    O -->|"developer done → route to tester"| T
-    O -->|"tester FAIL RI/schema → notify human · await approval → developer"| D
-    O -->|"tester FAIL + PII · operator APPROVED → route"| P
-    O -->|"operator BLOCKED → route to developer"| D
-
-    D -->|"tool/notebook/deploy.py (Fabric REST API)"| FABRIC
-    D -.->|"updates memory/"| M
-    T -.->|"logs result"| M
-    P -.->|"audit entry"| M
-```
-
-## Example run
-
-The screenshots below are from an end-to-end bronze ingestion of EU day-ahead electricity prices into a Fabric Lakehouse.
-
-**1 — Authoring the bronze notebook**
-
-The developer agent authors `bronze_electricity_day_ahead_prices.py` in VS Code while the upstream `download_sources` job runs in parallel on the Fabric workspace.
-
-![Claude Code authoring the bronze notebook source file alongside the Fabric Monitor showing download_sources in progress](img/fabric-0.png)
-
-**2 — Deploying and triggering**
-
-Codex reads the workspace ID from `.env`, deploys the notebook via the Fabric REST API, and triggers the run. The Monitor shows `bronze_electricity_day_ahead_prices` queued as "Not started".
-
-![Codex terminal deploying the notebook while the Fabric Monitor shows the job queued](img/fabric-1.png)
-
-**3 — Full run history**
-
-The Monitor activity log after a complete iteration: `download_sources` → `bronze_electricity_day_ahead_prices` → `dq_bronze_electricity_day_ahead_prices` all succeed. Earlier DQ failures (visible in the log) reflect the agent iterating on the schema contract before reaching a green run.
-
-![Fabric Monitor showing the full activity history with final succeeded runs and earlier failed DQ iterations](img/fabric-2.png)
-
-**4 — Ingested Delta table**
-
-The resulting `bronze_electricity_day_ahead_prices` Delta table in the DATALAKE Lakehouse — 1 000 rows, 27 columns, including the lineage envelope columns (`_ingest_timestamp`, `_source_system`, `_batch_id`) written by the bronze notebook.
-
-![Fabric Lakehouse table view showing the ingested bronze_electricity_day_ahead_prices Delta table with 1000 rows](img/fabric-3.png)
-
-## Live reference implementation
-
-[**fabric-open-data-lu**](https://github.com/scardoso-lu/fabric-open-data-lu) is a public target repository with both Claude and Codex generated scripts to ingest EU open-data sources (electricity day-ahead prices, residence statistics) into a Fabric Lakehouse using the three-notebook pipeline pattern (`download_` → `bronze_` → `dq_bronze_`).
-
-## Service Principal — recommended for agent sessions
-
-Agents authenticate to Fabric via the `fab` CLI. We recommend using a **service principal** (app registration) rather than a personal account so that agent sessions:
-
-- Use credentials that can be revoked without affecting your personal account
-- Are auditable separately in the Fabric activity log
-- Cannot exceed the permissions you grant them
-
-**Minimum required role: Workspace Contributor.**
-
-Contributor is enough to create, update, and run notebook items. It does not grant access to admin settings, capacity management, or other workspaces.
-
-```
-Azure Portal → App registrations → New registration
-  Name: fabric-agent-<project>
-  Supported account types: this tenant only
-
-Fabric workspace → Manage access → Add → service principal
-  Role: Contributor
-```
-
-`tool/setup/setup.ps1` (Windows) or `tool/setup/setup.sh` (Linux/Mac) configures the `fab` CLI with these values at first run.
-
-## Setup this source package
-
-### Linux / macOS
+#### Linux / macOS
 
 ```bash
 ./setup.sh                  # check tools and validate package
 ./setup.sh --install-tools  # also install uv if missing
 ```
 
-### Windows (PowerShell)
+#### Windows (PowerShell)
 
 ```powershell
 .\setup.ps1                  # check tools and validate package
@@ -128,31 +45,11 @@ Fabric workspace → Manage access → Add → service principal
 .\setup.ps1 -Help            # show usage
 ```
 
-Both scripts check for Git and uv, create `memory/project.md` if absent, and run the package validators.
+Both setup scripts check for Git and uv, create `memory/project.md` if absent, and run the package validators.
 
-## Profiles
+### 2. Install into a target repository
 
-| Profile | Installs |
-|---|---|
-| Codex | `AGENTS.md`, `.agents/skills/*/SKILL.md`, `.codex/agents/*.toml`, `.codex/config.toml` |
-| Claude | `CLAUDE.md`, `.claude/skills/*/SKILL.md`, `.claude/agents/*.md`, `.claude/settings.json` |
-| Shared | `memory/`, placeholder `.env.example`, `.gitignore` block, `workspace/`, `data/sandbox/`, `contracts/`, `runbooks/`, `tool/` tooling |
-
-Profiles own their own instructions, skills, agents, and settings. The only shared runtime state is `memory/`.
-
-### Target repo `tool/` layout
-
-The Shared profile installs five tool groups into every target repository:
-
-| Directory | Who runs it | Purpose |
-|---|---|---|
-| `tool/setup/` | Human (one-time) | Environment setup and Fabric admin — `setup.ps1`, `setup.sh`, `fab-sandbox`, `fabric-inventory-readonly` |
-| `tool/notebook/` | Developer agent | Notebook build → deploy → smoke-test cycle — `build.py`, `deploy.py`, `smoke-test.ps1/sh` |
-| `tool/validate/` | Developer agent | Pre-deploy gates — `pipeline-lineage.py` (staging path consistency), `source-contract.py` (contracts/ YAML shape) |
-| `tool/mcp/` | Infrastructure | MCP server that exposes Fabric CLI commands to agents |
-| `tool/pre-commit-check.ps1/sh` | Developer agent | Runs all validators before committing workspace changes |
-
-## Install into a target repository
+Use a real project repository as the target. Preview first, then apply:
 
 ```bash
 # preview changes first
@@ -169,118 +66,66 @@ cd /path/to/project-repo
 codex   # or: claude
 ```
 
-## Notebook deploy loop
+### 3. Configure Fabric access in the target repository
 
-The developer never uses the Fabric portal to edit notebooks. All changes happen in local `.py` files and are deployed via the Fabric REST API. Deploy and smoke test are **separate steps** — the smoke test never deploys.
+Agents authenticate to Fabric through the `fab` CLI. A **service principal** is recommended for agent sessions because its credentials are revocable, auditable, and permission-scoped.
 
-```mermaid
-sequenceDiagram
-    actor Human
-    participant Dev as developer agent
-    participant Build as tool/notebook/build.py
-    participant Deploy as tool/notebook/deploy.py
-    participant Smoke as smoke-test.ps1 / smoke-test.sh
+Minimum required Fabric workspace role: **Contributor**.
 
-    Note over Human: One-time setup (workstation)
-    Human->>Human: Set FABRIC_WORKSPACE_ID in .env
-    Human->>Human: fab-sandbox auth login
-    Note over Human: Per-task
-    Human->>Dev: "build notebook [name]"
-    Dev->>Dev: Author / edit workspace/<topic>/<name>.py using # %% cell markers
+```text
+Azure Portal → App registrations → New registration
+  Name: fabric-agent-<project>
+  Supported account types: this tenant only
 
-    Note over Dev,Deploy: Deploy once per source change
-    Dev->>Build: python tool/notebook/build.py
-    Build-->>Dev: fabric_notebooks/<topic>/<name>.Notebook
-
-    Dev->>Deploy: python tool/notebook/deploy.py deploy <name> <workspace_id>
-    Deploy-->>Dev: create/update OK (notebook created in Fabric if new)
-
-    Note over Dev,Smoke: Smoke test — triggers existing notebook, never deploys
-    Dev->>Smoke: Windows: tool\notebook\smoke-test.ps1 -Notebook <name><br/>Linux/Mac: tool/notebook/smoke-test.sh --notebook <name>
-    Smoke->>Deploy: deploy.py exec <name> <workspace_id>
-    Deploy-->>Smoke: job triggered · polling…
-    Note over Deploy: Cold start: ~3 min F64, up to 12 min F2/F4
-    Deploy-->>Smoke: STATUS: Completed / Failed / Cancelled
-
-    alt STATUS: Completed
-        Dev->>Deploy: deploy.py fetch <name> <workspace_id>
-        Dev->>Dev: git rm workspace/<topic>/<name>.py
-        Dev->>Dev: git add workspace/<topic>/<name>.Notebook/ · git commit · handoff to tester
-    else STATUS: Failed or unclear
-        Dev->>Human: Report FAIL + failureReason · await approval
-        Human-->>Dev: Approve next run
-        Dev->>Dev: Fix failing cell · redeploy · re-run smoke test
-    end
+Fabric workspace → Manage access → Add → service principal
+  Role: Contributor
 ```
 
-> `fab import` and `fab job run` require an interactive Windows console and fail in Git Bash or sandboxed environments. `tool/notebook/deploy.py` uses `fab api` (REST API calls via CLI) which works everywhere. On Windows it automatically routes through `tool/setup/fab-sandbox.ps1` to keep the authenticated `fab` profile isolated. It also enables `_inlineInstallationEnabled` on every triggered run so `%pip install` cells work when a notebook is launched via the API.
+In the installed target repo, use `tool/setup/setup.ps1` on Windows or `tool/setup/setup.sh` on Linux/macOS to configure the `fab` CLI and project environment values.
 
-## Medallion pipeline flow
+## Example result
 
-DQ notebooks are always separate files from ingestion notebooks. The tester validates each layer independently using Great Expectations.
+The screenshots below show an end-to-end bronze ingestion of EU day-ahead electricity prices into a Fabric Lakehouse.
 
-```mermaid
-flowchart LR
-    SRC["📄 Source\nCSV · API · DB\ndata/sandbox/"]
+**1 — Authoring the bronze notebook**
 
-    subgraph Dev["Developer builds  (notebook-loop per layer)"]
-        B["🥉 bronze_src.py\nraw · append-only\n_ingest_timestamp\n_source_system · _batch_id"]
-        S["🥈 silver_src.py\ncleaned · typed\nDelta MERGE · deduped"]
-        G["🥇 gold_model.py\nfacts · dims · KPIs\nsemantic model"]
-    end
+The developer agent authors `bronze_electricity_day_ahead_prices.py` while the upstream `download_sources` job runs in Fabric.
 
-    subgraph Test["Tester validates  (independently · Great Expectations)"]
-        BQ["dq_bronze_src.py\nnull PKs · row count\nlineage envelope\nschema vs contract"]
-        SQ["dq_silver_src.py\nduplicates · type checks\nrow count delta ≤20%"]
-        GQ["dq_gold_model.py\nRI · metric sanity\nPII masking · RLS"]
-    end
+![Claude Code authoring the bronze notebook source file alongside the Fabric Monitor showing download_sources in progress](img/fabric-0.png)
 
-    PASS(["✅ PASS → orchestrator"])
-    ESC_D(["🔁 → developer\nRI · schema drift"])
-    ESC_O(["🚨 → operator\nDQ FAIL + PII suspicion"])
+**2 — Deploying and triggering**
 
-    SRC --> B
-    B --> BQ
-    BQ -->|pass| S
-    S --> SQ
-    SQ -->|pass| G
-    G --> GQ
-    GQ -->|all pass| PASS
+Codex reads the workspace ID from `.env`, deploys the notebook through the Fabric REST API, and triggers the run.
 
-    BQ -->|fail| ESC_D
-    SQ -->|fail| ESC_D
-    GQ -->|RI · schema| ESC_D
-    GQ -->|DQ FAIL + PII| ESC_O
-```
+![Codex terminal deploying the notebook while the Fabric Monitor shows the job queued](img/fabric-1.png)
 
-## Fabric notebook authoring rules
+**3 — Full run history**
 
-These apply inside every `workspace/<topic>/*.py` notebook source file:
+The Fabric Monitor shows `download_sources` → `bronze_electricity_day_ahead_prices` → `dq_bronze_electricity_day_ahead_prices` succeeding after schema-contract iterations.
 
-| Rule | Correct | Wrong |
-|---|---|---|
-| Lakehouse paths | `Files/data/sandbox/topic/file.csv` | `/lakehouse/default/Files/...` |
-| Non-standard packages | `%pip install "pkg>=x,<y"` as first cell | import at top (runtime has only PySpark + stdlib) |
-| Pipeline path alignment | shared `FABRIC_STAGING_DIR` constant; run `python tool/validate/pipeline-lineage.py` before build | hard-coded or mismatched strings |
-| Fabric vs local portability | `mssparkutils` detection, relative fallback | `if True:` / hard Fabric assumption |
+![Fabric Monitor showing the full activity history with final succeeded runs and earlier failed DQ iterations](img/fabric-2.png)
 
-## Safety behavior
+**4 — Ingested Delta table**
 
-`bin/install-fabric-agent` requires a git target, refuses to install into this source repo unless `--self-test` is passed, protects unmanaged files by default, supports `--backup`, and merges a managed `.gitignore` block idempotently.
+The resulting Delta table contains 1,000 rows and 27 columns, including lineage envelope fields such as `_ingest_timestamp`, `_source_system`, and `_batch_id`.
 
-## Validation
+![Fabric Lakehouse table view showing the ingested bronze_electricity_day_ahead_prices Delta table with 1000 rows](img/fabric-3.png)
 
-Run these from this source package repository. They validate the installer package and profile guidance; they are not installed into target repositories.
+## Live reference implementation
+
+[**fabric-open-data-lu**](https://github.com/scardoso-lu/fabric-open-data-lu) is a public target repository with Claude- and Codex-generated scripts for EU open-data ingestion into Microsoft Fabric. It demonstrates the `download_` → `bronze_` → `dq_bronze_` notebook pattern used by this package.
+
+## Learn more
+
+For the deeper human/machine split, architecture diagrams, notebook deployment loop, medallion flow, authoring rules, safety behavior, and validation commands, see [docs/learn-more.md](docs/learn-more.md).
+
+## Validation commands for contributors
+
+Run these from this source package repository after changing profiles, installer logic, guidance, or validation code:
 
 ```bash
-uv run bin/validate-install-package.py
-uv run bin/validate-agent-guidance.py
-```
-
-To check that an installed target repository is still aligned with this package, run the installer check from this source repository:
-
-```bash
-uv run python bin/install-fabric-agent --profile all --target /path/to/project-repo --check
+python3 bin/validate-install-package.py
+python3 bin/validate-agent-guidance.py
 ```
 
 For installer changes, also run a disposable-target smoke test:

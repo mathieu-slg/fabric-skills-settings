@@ -381,7 +381,7 @@ def main() -> None:
         if not item_id:
             raise SystemExit(
                 f"Notebook '{notebook_name}' not found in workspace {workspace_id}.\n"
-                "Deploy it first: python bin/notebook/deploy.py deploy <name> <workspace_id>"
+                "Deploy it first: python tool/notebook/deploy.py deploy <name> <workspace_id>"
             )
         job_instance_id = trigger_run(workspace_id, item_id)
         monitor_run(workspace_id, item_id, job_instance_id)
