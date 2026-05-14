@@ -4,10 +4,9 @@ This repository is the runtime workspace. Work from this repo root; do not use a
 
 ## Session Start — Run Every Session, In Order
 
-1. Read `memory/MEMORY.md`.
-2. Read `memory/project.md` for cross-topic status.
-3. If the request concerns a specific topic, also read `memory/<topic>/project.md`.
-4. **Verify setup — check all of the following before accepting any Fabric work:**
+1. Read `memory/MEMORY.md` and each global file it lists.
+2. If the request concerns a specific topic, read `memory/<topic>/project.md`.
+3. **Verify setup — check all of the following before accepting any Fabric work:**
 
    | Check | Pass | Fail — stop and show this |
    |---|---|---|
@@ -23,7 +22,7 @@ This repository is the runtime workspace. Work from this repo root; do not use a
 
    Then stop. Do not attempt workarounds or partial execution.
 
-5. Mention relevant context briefly, then address the request.
+4. Mention relevant context briefly, then address the request.
 
 ## Directory Layout
 

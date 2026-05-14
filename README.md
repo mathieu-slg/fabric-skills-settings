@@ -23,7 +23,7 @@ flowchart TD
 
         P["🔒 operator\nRead-only security review · never modifies code\nSecrets · masking · least-privilege · RLS/OLS\nReports to orchestrator only\nTools: Read Bash Glob Grep"]
 
-        M[("💾 memory/\nMEMORY.md · project.md\nplatform.md · decisions.md")]
+        M[("💾 memory/\nMEMORY.md · notebook-authoring.md\nRTK.md · &lt;topic&gt;/project.md")]
     end
 
     FABRIC["☁️ Fabric Workspace\nsandbox only"]
@@ -84,6 +84,33 @@ The resulting `bronze_electricity_day_ahead_prices` Delta table in the DATALAKE 
 
 ![Fabric Lakehouse table view showing the ingested bronze_electricity_day_ahead_prices Delta table with 1000 rows](img/fabric-3.png)
 
+## Live reference implementation
+
+[**fabric-open-data-lu**](https://github.com/scardoso-lu/fabric-open-data-lu) is a public target repository with both Claude and Codex generated scripts to ingest EU open-data sources (electricity day-ahead prices, residence statistics) into a Fabric Lakehouse using the three-notebook pipeline pattern (`download_` → `bronze_` → `dq_bronze_`).
+
+## Service Principal — recommended for agent sessions
+
+Agents authenticate to Fabric via the `fab` CLI. We recommend using a **service principal** (app registration) rather than a personal account so that agent sessions:
+
+- Use credentials that can be revoked without affecting your personal account
+- Are auditable separately in the Fabric activity log
+- Cannot exceed the permissions you grant them
+
+**Minimum required role: Workspace Contributor.**
+
+Contributor is enough to create, update, and run notebook items. It does not grant access to admin settings, capacity management, or other workspaces.
+
+```
+Azure Portal → App registrations → New registration
+  Name: fabric-agent-<project>
+  Supported account types: this tenant only
+
+Fabric workspace → Manage access → Add → service principal
+  Role: Contributor
+```
+
+`tool/setup/setup.ps1` (Windows) or `tool/setup/setup.sh` (Linux/Mac) configures the `fab` CLI with these values at first run.
+
 ## Setup this source package
 
 ### Linux / macOS
@@ -109,20 +136,21 @@ Both scripts check for Git and uv, create `memory/project.md` if absent, and run
 |---|---|
 | Codex | `AGENTS.md`, `.agents/skills/*/SKILL.md`, `.codex/agents/*.toml`, `.codex/config.toml` |
 | Claude | `CLAUDE.md`, `.claude/skills/*/SKILL.md`, `.claude/agents/*.md`, `.claude/settings.json` |
-| Shared | `memory/`, placeholder `.env.example`, `.gitignore` block, `workspace/`, `data/sandbox/`, `contracts/`, `runbooks/`, `bin/` tooling |
+| Shared | `memory/`, placeholder `.env.example`, `.gitignore` block, `workspace/`, `data/sandbox/`, `contracts/`, `runbooks/`, `tool/` tooling |
 
 Profiles own their own instructions, skills, agents, and settings. The only shared runtime state is `memory/`.
 
-### Target repo `bin/` layout
+### Target repo `tool/` layout
 
-The Shared profile installs four tool groups into every target repository:
+The Shared profile installs five tool groups into every target repository:
 
 | Directory | Who runs it | Purpose |
 |---|---|---|
-| `bin/setup/` | Human (one-time) | Environment setup and Fabric admin — `setup.ps1`, `setup.sh`, `fab-sandbox`, `fabric-inventory-readonly` |
-| `bin/notebook/` | Developer agent | Notebook build → deploy → smoke-test cycle — `build.py`, `deploy.py`, `smoke-test.ps1/sh` |
-| `bin/validate/` | Developer agent | Pre-deploy gates — `pipeline-lineage.py` (staging path consistency), `source-contract.py` (contracts/ YAML shape) |
-| `bin/mcp/` | Infrastructure | MCP server that exposes Fabric CLI commands to agents |
+| `tool/setup/` | Human (one-time) | Environment setup and Fabric admin — `setup.ps1`, `setup.sh`, `fab-sandbox`, `fabric-inventory-readonly` |
+| `tool/notebook/` | Developer agent | Notebook build → deploy → smoke-test cycle — `build.py`, `deploy.py`, `smoke-test.ps1/sh` |
+| `tool/validate/` | Developer agent | Pre-deploy gates — `pipeline-lineage.py` (staging path consistency), `source-contract.py` (contracts/ YAML shape) |
+| `tool/mcp/` | Infrastructure | MCP server that exposes Fabric CLI commands to agents |
+| `tool/pre-commit-check.ps1/sh` | Developer agent | Runs all validators before committing workspace changes |
 
 ## Install into a target repository
 

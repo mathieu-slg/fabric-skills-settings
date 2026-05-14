@@ -11,3 +11,4 @@ _delta_log/
 *.xls
 .claude/settings.local.json
 tool/
+.mcp.json
