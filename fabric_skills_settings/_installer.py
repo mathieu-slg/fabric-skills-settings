@@ -11,10 +11,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-# When installed via pip, _profiles/ is bundled alongside this module.
-# When running from source, bin/install-fabric-agent uses ROOT / "profiles" instead.
-PROFILES = Path(__file__).parent / "_profiles"
+# Installed wheel: _profiles/ is bundled alongside this module.
+# Editable install or source checkout: fall back to profiles/ at the repo root.
 _PACKAGE_DIR = Path(__file__).parent
+_bundled = _PACKAGE_DIR / "_profiles"
+PROFILES = _bundled if _bundled.is_dir() else _PACKAGE_DIR.parent / "profiles"
 
 MANAGED_BEGIN = "<!-- BEGIN MANAGED BY fabric-skills-settings -->"
 MANAGED_END = "<!-- END MANAGED BY fabric-skills-settings -->"
