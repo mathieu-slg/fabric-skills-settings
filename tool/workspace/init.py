@@ -109,13 +109,22 @@ def _fab_api(endpoint: str) -> dict:
         )
 
 
-def _value_list(resp: dict) -> list[dict]:
-    """Extract the item list from a fab api JSON response."""
-    data = resp.get("result", {}).get("data", [])
-    if not data:
-        return []
-    text = data[0].get("text") or {}
-    return text.get("value", [])
+def _fetch_all_pages(endpoint: str) -> list[dict]:
+    """Fetch every page from a Fabric API list endpoint, following continuationToken."""
+    all_items: list[dict] = []
+    # Strip any existing query string so continuation params don't accumulate.
+    base_endpoint = endpoint.split("?")[0]
+    next_endpoint: str | None = endpoint
+    while next_endpoint is not None:
+        resp = _fab_api(next_endpoint)
+        data = resp.get("result", {}).get("data", [])
+        if not data:
+            break
+        text = data[0].get("text") or {}
+        all_items.extend(text.get("value", []))
+        token = text.get("continuationToken")
+        next_endpoint = f"{base_endpoint}?continuationToken={token}" if token else None
+    return all_items
 
 
 def _discover_workspace_items(ws_id: str, log: object) -> dict[str, list[dict]]:
@@ -123,21 +132,21 @@ def _discover_workspace_items(ws_id: str, log: object) -> dict[str, list[dict]]:
 
     # Lakehouses via specialized endpoint (includes OneLake properties)
     try:
-        items["Lakehouse"] = _value_list(_fab_api(f"workspaces/{ws_id}/lakehouses"))
+        items["Lakehouse"] = _fetch_all_pages(f"workspaces/{ws_id}/lakehouses")
     except SystemExit as exc:
         log(f"    Warning: could not fetch lakehouses — {exc}")
         items["Lakehouse"] = []
 
     # Warehouses via specialized endpoint (includes connectionString)
     try:
-        items["Warehouse"] = _value_list(_fab_api(f"workspaces/{ws_id}/warehouses"))
+        items["Warehouse"] = _fetch_all_pages(f"workspaces/{ws_id}/warehouses")
     except SystemExit as exc:
         log(f"    Warning: could not fetch warehouses — {exc}")
         items["Warehouse"] = []
 
     # Notebooks and DataPipelines via generic items endpoint
     try:
-        all_items = _value_list(_fab_api(f"workspaces/{ws_id}/items"))
+        all_items = _fetch_all_pages(f"workspaces/{ws_id}/items")
         items["Notebook"] = [i for i in all_items if i.get("type") == "Notebook"]
         items["DataPipeline"] = [i for i in all_items if i.get("type") == "DataPipeline"]
     except SystemExit as exc:
@@ -162,8 +171,7 @@ def main(quiet: bool = False) -> None:
         except Exception:
             pass
 
-    workspaces_resp = _fab_api("workspaces")
-    workspaces_raw = _value_list(workspaces_resp)
+    workspaces_raw = _fetch_all_pages("workspaces")
     if not workspaces_raw:
         log("No workspaces returned. Verify authentication: bash tool/setup/fab-sandbox api workspaces --output_format json")
         raise SystemExit(1)
