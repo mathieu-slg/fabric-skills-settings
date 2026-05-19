@@ -134,6 +134,21 @@ The resulting Delta table contains 1,000 rows and 27 columns, including lineage 
 
 ![Fabric Lakehouse table view showing the ingested bronze_electricity_day_ahead_prices Delta table with 1000 rows](img/fabric-3.png)
 
+
+**5 — Restricted workspace for AI agentic development**
+
+The agent runs in a dedicated workspace. Permissions are set at the workspace level to ensure there is no access to production data or pipelines.
+
+![Fabric Workspace permissions](img/fabric-4.png)
+
+**6 — Development Lifecycle**
+
+The code is integrated with Git, and the agent develops everything in a dedicated feature branch. Human developers can review the pull request later and merge the work from the feature branch into dev.
+
+![Agent Feature branch](img/fabric-5.png)
+
+> **Note**: The VIBECODING workspace was set up by selecting individual Fabric items. This narrowed down the codebase to only the scripts that stakeholders actually care about.
+
 ## Live reference implementation
 
 [**fabric-open-data-lu**](https://github.com/scardoso-lu/fabric-open-data-lu) is a public target repository with Claude- and Codex-generated scripts for EU open-data ingestion into Microsoft Fabric. It demonstrates the `download_` → `bronze_` → `dq_bronze_` notebook pattern used by this package.
