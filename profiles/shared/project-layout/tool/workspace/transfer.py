@@ -145,15 +145,27 @@ def _parse_notebook_sentinels(source_path: Path) -> tuple[list[str], list[str]]:
     return lakehouses, warehouses
 
 
-def transfer_notebook(notebook_name: str, target_ws: dict, base_creds: dict[str, str]) -> None:
+def transfer_notebook(
+    notebook_name: str,
+    target_ws: dict,
+    base_creds: dict[str, str],
+    *,
+    source_dir: Path | None = None,
+) -> None:
     target_name = target_ws.get("displayName", "")
     target_id = target_ws.get("id", "")
 
-    matches = sorted((ROOT / "workspace").glob(f"**/{notebook_name}.py"))
+    if source_dir is not None:
+        # Called from transfer_topic — exact path is already known; no glob needed.
+        candidate = source_dir / f"{notebook_name}.py"
+        matches: list[Path] = [candidate] if candidate.exists() else []
+    else:
+        matches = sorted((ROOT / "workspace").glob(f"**/{notebook_name}.py"))
     if not matches:
         raise SystemExit(
-            f"Notebook source not found: {notebook_name}.py under workspace/\n"
-            "The notebook must be checked out locally before transferring."
+            f"Notebook source not found: {notebook_name}.py"
+            + (f" in workspace/{source_dir.relative_to(ROOT / 'workspace')}/" if source_dir else " under workspace/")
+            + "\nThe notebook must be checked out locally before transferring."
         )
     source_path = matches[0]
     lh_names, wh_names = _parse_notebook_sentinels(source_path)
@@ -198,7 +210,7 @@ def transfer_topic(topic: str, target_ws: dict, base_creds: dict[str, str]) -> N
         raise SystemExit(f"No .py notebook sources found in workspace/{topic}/")
     print(f"Transferring topic {topic!r}: {len(notebooks)} notebook(s) → {target_name}")
     for nb in notebooks:
-        transfer_notebook(nb, target_ws, base_creds)
+        transfer_notebook(nb, target_ws, base_creds, source_dir=topic_dir)
 
 
 def transfer_pipeline(topic: str, target_ws: dict, base_creds: dict[str, str]) -> None:
