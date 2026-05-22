@@ -19,6 +19,9 @@ def test_fab_sandbox_ps1_allows_native_stderr_without_throwing():
 
         assert "$savedErrorActionPreference = $ErrorActionPreference" in text
         assert '$ErrorActionPreference = "Continue"' in text
-        assert "& $fab @args" in text
-        assert "$exitCode = $LASTEXITCODE" in text
+        assert "$psi = New-Object System.Diagnostics.ProcessStartInfo" in text
+        assert "$psi.FileName = $fab" in text
+        assert "ConvertTo-WinArg" in text
+        assert "$proc = [System.Diagnostics.Process]::Start($psi)" in text
+        assert "$exitCode = $proc.ExitCode" in text
         assert "$ErrorActionPreference = $savedErrorActionPreference" in text
