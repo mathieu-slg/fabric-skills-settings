@@ -55,10 +55,10 @@ Install into a target repository:
 
 ```bash
 # preview changes first
-./bin/install-fabric-agent --profile all --target /path/to/project-repo --dry-run
+uv run install-fabric-agent --profile all --target /path/to/project-repo --dry-run
 
 # apply
-./bin/install-fabric-agent --profile all --target /path/to/project-repo
+uv run install-fabric-agent --profile all --target /path/to/project-repo
 ```
 
 Then work from the target repository:
@@ -172,9 +172,9 @@ For installer changes, also run a disposable-target smoke test:
 ```bash
 tmp=$(mktemp -d)
 git init -q "$tmp"
-./bin/install-fabric-agent --profile all --target "$tmp" --dry-run
-./bin/install-fabric-agent --profile all --target "$tmp"
-./bin/install-fabric-agent --profile all --target "$tmp" --check
+uv run install-fabric-agent --profile all --target "$tmp" --dry-run
+uv run install-fabric-agent --profile all --target "$tmp"
+uv run install-fabric-agent --profile all --target "$tmp" --check
 ```
 
 ## What gets installed?
