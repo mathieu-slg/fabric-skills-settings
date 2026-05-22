@@ -20,10 +20,10 @@ Preview what will be written, then apply:
 
 ```bash
 # preview changes first
-install-fabric-agent --profile all --target /path/to/project-repo --dry-run
+uv run install-fabric-agent --profile claude --target /path/to/project-repo --dry-run
 
 # apply
-install-fabric-agent --profile all --target /path/to/project-repo
+uv run install-fabric-agent --profile claude --target /path/to/project-repo
 ```
 
 `--profile` accepts `claude`, `codex`, or `all`.
@@ -55,10 +55,10 @@ Install into a target repository:
 
 ```bash
 # preview changes first
-uv run install-fabric-agent --profile all --target /path/to/project-repo --dry-run
+uv run install-fabric-agent --profile claude --target /path/to/project-repo --dry-run
 
 # apply
-uv run install-fabric-agent --profile all --target /path/to/project-repo
+uv run install-fabric-agent --profile claude --target /path/to/project-repo
 ```
 
 Then work from the target repository:
