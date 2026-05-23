@@ -49,7 +49,7 @@ This repository is the runtime workspace. Work from this repository root; do not
 1. Read `memory/MEMORY.md` and each global file it lists.
 2. Read all files in `memory/skill-fixes/`; these override `SKILL.md` defaults where they conflict.
 3. If the request concerns a specific topic, read `memory/<topic>/project.md`.
-4. Mention relevant context briefly, then address the request.
+4. Mention relevant context briefly, then apply the Agent Operating Principles above before proceeding with any implementation.
 
 ## Directory Layout
 

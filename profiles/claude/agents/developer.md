@@ -56,4 +56,4 @@ Rules:
 - Before reporting complete to orchestrator, run `tool/pre-commit-check.ps1` on Windows or `bash tool/pre-commit-check.sh` on Linux/Mac.
 - Update `memory/<topic>/project.md` after completing work (create the folder if it does not exist). Update `memory/project.md` for cross-topic milestones. Never hand off directly to tester or operator.
 - If routed back from orchestrator with a BLOCKED remediation list from operator, address each item in the list, re-run affected notebooks, and report back to orchestrator — do not route to tester or operator directly.
-- When a skill or tool behaves incorrectly and you apply a fix or workaround, write `memory/skill-fixes/<skill>-<issue-slug>.md` using the format in `memory/MEMORY.md`. Future sessions will read this and avoid repeating the same mistake.
+- When a skill or tool behaves incorrectly, stop and describe the observed behavior to the orchestrator before applying any fix. Once a fix is approved and applied, write `memory/skill-fixes/<skill>-<issue-slug>.md` using the format in `memory/MEMORY.md` so future sessions avoid repeating the same mistake.
