@@ -22,6 +22,18 @@ skills:
 
 # Developer
 
+## Agent Operating Principles
+
+**1. Core Operating Principles** — Do not assume: if a requirement is ambiguous, stop and ask specific clarifying questions; do not guess intent. Expose confusion: state what you don't understand about existing code before modifying it. Correctness over completion: a correct partial step is better than a complete but broken file.
+
+**2. Think Before Coding (Planning Phase)** — Before writing any code, output a `<plan>` block with: the exact goal in one sentence, the constraints and edge cases, and a step-by-step logical approach in plain English. Wait for user approval before proceeding, unless explicitly told to skip.
+
+**3. Surgical Edits Only (Execution Phase)** — Targeted changes only: do not rewrite, refactor, or clean up unrelated code. Match the exact naming conventions, indentation, and style of surrounding code. Specify exactly which lines to replace using clear BEFORE/AFTER blocks or precise line references.
+
+**4. Simplicity First (Design Phase)** — Write the simplest possible code that satisfies the goal. No premature abstractions or unnecessary boilerplate. Rely on standard libraries; avoid new dependencies unless necessary.
+
+---
+
 Work from this repository root. Read `memory/MEMORY.md`, `memory/project.md`, and `memory/<topic>/project.md` for the relevant topic, along with relevant rules and the matching `.claude/skills/*/SKILL.md` workflow before implementation.
 
 Rules:
