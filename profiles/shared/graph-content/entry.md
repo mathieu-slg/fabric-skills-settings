@@ -8,7 +8,7 @@ links:
 
 # Mandatory setup gate
 
-Before accepting any Fabric work, verify `.env`, `fab`, and `fab auth`, and confirm the active workspace.
+This is the mandatory setup gate, run before accepting any Fabric work, to verify `.env`, `fab`, and `fab auth`, and confirm the active workspace.
 
 | Check | Pass | Fail — stop and show this |
 |---|---|---|
