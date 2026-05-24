@@ -12,18 +12,14 @@ NODE_KINDS = frozenset(
         "content",
         "skill",
         "rule",
-        "template",
         "memory",
         "skill-fix",
-        "agent",
-        "topic",
-        "runbook",
-        "security",
+        "capability",
         "profile",
     }
 )
 
-EDGE_KINDS = frozenset({"curated", "auto-path"})
+EDGE_KINDS = frozenset({"curated", "auto-path", "capability-route", "capability-covers"})
 
 
 @dataclass(frozen=True)
@@ -150,24 +146,12 @@ _PATH_PREFIX_TO_ID: tuple[tuple[str, str], ...] = (
     ("memory/graph-content/", "graph-content/"),
     ("memory/rules/", "rules/"),
     ("memory/skill-fixes/", "skill-fixes/"),
-    ("memory/runbooks/", "runbooks/"),
-    ("memory/security/", "security/"),
     ("memory/", "memory/"),
     ("profiles/shared/graph-content/", "graph-content/"),
-    ("profiles/shared/templates/", "templates/"),
     ("profiles/shared/memory/", "memory/"),
     ("profiles/shared/project-layout/memory/rules/", "rules/"),
     ("profiles/shared/project-layout/memory/", "memory/"),
-    ("profiles/claude/agents/", "agents/"),
-    (".claude/agents/", "agents/"),
-    (".agents/agents/", "agents/"),
     ("rules/", "rules/"),
-    ("templates/", "templates/"),
-)
-
-
-_MEMORY_RESERVED_SUBDIRS: frozenset[str] = frozenset(
-    {"graph-content", "rules", "skill-fixes", "runbooks", "security", ".graph"}
 )
 
 
@@ -192,13 +176,6 @@ def id_from_path(repo_relative: str) -> str | None:
         if parts[-1] == "SKILL" and idx + 1 < len(parts) and parts[idx + 2] == "SKILL":
             return f"skills/{parts[idx + 1]}"
 
-    if (
-        len(parts) >= 3
-        and parts[0] == "memory"
-        and parts[1] not in _MEMORY_RESERVED_SUBDIRS
-    ):
-        return f"topic/{'/'.join(parts[1:])}"
-
     for prefix, replacement in _PATH_PREFIX_TO_ID:
         if base.startswith(prefix):
             rest = base[len(prefix):]
@@ -219,16 +196,6 @@ def kind_for_id(node_id: str, frontmatter: dict[str, Any] | None = None) -> str:
         return "skill"
     if node_id.startswith("rules/"):
         return "rule"
-    if node_id.startswith("templates/"):
-        return "template"
     if node_id.startswith("skill-fixes/"):
         return "skill-fix"
-    if node_id.startswith("agents/"):
-        return "agent"
-    if node_id.startswith("topic/"):
-        return "topic"
-    if node_id.startswith("runbooks/"):
-        return "runbook"
-    if node_id.startswith("security/"):
-        return "security"
     return "memory"

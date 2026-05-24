@@ -2,7 +2,7 @@
 
 The hard-minimal profile contract enforces:
 - profile <= 50 lines
-- must reference mcp__fabric-graph__get_entry
+- must reference graph_get_entry
 - must contain the anti-drift anchor sentence
 - must NOT contain operational section names (anti-bypass)
 """
@@ -46,7 +46,7 @@ def _make_baseline_source_repo(root: Path) -> None:
     (root / "CLAUDE.md").write_text("install-fabric-agent profiles/codex profiles/claude\n")
 
     for skill in [
-        "fabric-ingest", "fabric-transform", "fabric-model", "fabric-validate",
+        "rtk", "fabric-ingest", "fabric-transform", "fabric-model", "fabric-validate",
         "fabric-notebook-loop", "fabric-ops", "fabric-pipeline", "semantic-model",
         "mock-data", "prd", "grill-me", "git-commit", "caveman",
     ]:
@@ -65,8 +65,6 @@ def _make_baseline_source_repo(root: Path) -> None:
 
     (root / "profiles" / "codex" / "config.toml").write_text("")
     (root / "profiles" / "claude" / "settings.local.json").write_text("{}")
-    (root / "profiles" / "shared" / "memory").mkdir(parents=True, exist_ok=True)
-    (root / "profiles" / "shared" / "memory" / "MEMORY.md").write_text("# memory\n")
     rules_dir = root / "profiles" / "shared" / "project-layout" / "memory" / "rules"
     rules_dir.mkdir(parents=True, exist_ok=True)
     for name in ("data-engineering.md", "fabric-platform.md", "security.md"):
@@ -88,7 +86,7 @@ def _make_baseline_source_repo(root: Path) -> None:
     (gc / "indexes" / "skills-index.md").write_text(
         "# skills\n" + "\n".join(
             f"- `{s}`" for s in [
-                "fabric-ingest", "fabric-transform", "fabric-model", "fabric-validate",
+                "rtk", "fabric-ingest", "fabric-transform", "fabric-model", "fabric-validate",
                 "fabric-notebook-loop", "fabric-ops", "fabric-pipeline", "semantic-model",
                 "mock-data", "prd", "grill-me", "git-commit", "caveman",
             ]
@@ -118,7 +116,7 @@ def _hard_minimal_profile_body() -> str:
         "\n"
         "You know NOTHING about this project except how to call the graph tool.\n"
         "\n"
-        "Call mcp__fabric-graph__get_entry first.\n"
+        "Call graph_get_entry first.\n"
     )
 
 
@@ -143,7 +141,7 @@ def test_validator_rejects_bloated_profile_over_50_lines(tmp_path):
 
 def test_validator_rejects_profile_without_anchor(tmp_path):
     _make_baseline_source_repo(tmp_path)
-    bad = "# Profile\n\nCall mcp__fabric-graph__get_entry first.\n"
+    bad = "# Profile\n\nCall graph_get_entry first.\n"
     (tmp_path / "profiles" / "claude" / "CLAUDE.md").write_text(bad)
     (tmp_path / "profiles" / "codex" / "AGENTS.md").write_text(bad)
     code, out = _run_validator(tmp_path)

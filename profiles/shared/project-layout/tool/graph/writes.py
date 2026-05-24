@@ -50,11 +50,6 @@ _KIND_PATH_TEMPLATES: dict[str, str] = {
     "graph-content": "memory/graph-content/{rest}.md",
     "rule": "memory/rules/{name}.md",
     "rules": "memory/rules/{name}.md",
-    "topic": "memory/{rest}.md",
-    "template": "templates/{name}.md",
-    "templates": "templates/{name}.md",
-    "runbooks": "memory/runbooks/{name}.md",
-    "security": "memory/security/{name}.md",
 }
 
 
@@ -140,7 +135,7 @@ def _rebuild_and_save(root: Path) -> tuple[GraphStore, int, int]:
             "graph build failed after write: " + "; ".join(result.errors)
         )
     _, graph_path, bm25_path = _graph_paths(root)
-    result.store.save(graph_path, built_by="mcp__fabric-graph__write")
+    result.store.save(graph_path, built_by="fabric-graph:graph_write")
     bodies = _read_bodies(root, result.store)
     save_index(bm25_path, build_bm25_index(result.store, bodies))
     return result.store, result.store.graph.number_of_nodes(), result.store.graph.number_of_edges()

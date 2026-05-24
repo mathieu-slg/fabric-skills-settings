@@ -33,10 +33,6 @@ def _make_tree(root: Path) -> None:
         root / "rules" / "security.md",
         "---\nname: security\ndescription: Secrets handling rules\n---\n\n# Security\nNever commit credentials.\n",
     )
-    _write(
-        root / "templates" / "runbook.md",
-        "---\nname: runbook\ndescription: Runbook template\n---\n\n# Runbook\n",
-    )
 
 
 def test_build_indexes_expected_nodes(tmp_path):
@@ -50,7 +46,6 @@ def test_build_indexes_expected_nodes(tmp_path):
         "skills/fabric-transform",
         "rules/data-engineering",
         "rules/security",
-        "templates/runbook",
     } <= ids
 
 
@@ -71,28 +66,41 @@ def test_build_auto_extracts_path_mention_edges(tmp_path):
     assert ("graph-content/session/session-start", "skills/fabric-transform") in edges
 
 
+def test_build_does_not_index_native_agent_files(tmp_path):
+    _make_tree(tmp_path)
+    _write(
+        tmp_path / ".claude" / "agents" / "developer.md",
+        "---\nname: developer\n---\n\n# Developer\nUse profiles/skills/fabric-transform/SKILL.md.\n",
+    )
+    _write(
+        tmp_path / ".codex" / "agents" / "developer.toml",
+        'name = "developer"\n'
+        'description = "Implements Microsoft Fabric work."\n'
+        'developer_instructions = """Use profiles/skills/fabric-transform/SKILL.md."""\n',
+    )
+    result = build(tmp_path)
+    assert result.errors == []
+    assert "agents/developer" not in set(result.store.graph.nodes)
+
+
 def test_build_warns_on_orphans(tmp_path):
     _make_tree(tmp_path)
-    _write(tmp_path / "templates" / "lonely.md", "# Lonely\n")
+    _write(tmp_path / "memory" / "skill-fixes" / "lonely-issue.md", "---\nname: lonely-issue\n---\n\n# Lonely\n")
     result = build(tmp_path)
-    assert any("templates/lonely" in w for w in result.warnings)
+    assert any("skill-fixes/lonely-issue" in w for w in result.warnings)
 
 
 def test_build_warns_and_keeps_first_on_duplicate_id(tmp_path):
     _make_tree(tmp_path)
     _write(
-        tmp_path / "memory" / "MEMORY.md",
-        "---\nname: memory-dup\n---\n\n# Dup runtime memory\n",
-    )
-    _write(
-        tmp_path / "profiles" / "shared" / "memory" / "MEMORY.md",
-        "---\nname: memory-source\n---\n\n# Source memory\n",
+        tmp_path / "memory" / "graph-content" / "entry.md",
+        "---\nname: entry\ndescription: Runtime install of entry\n---\n\n# Entry dup\n",
     )
     result = build(tmp_path)
     assert any("duplicate node id" in w for w in result.warnings)
     assert result.errors == []
-    node = result.store.get_node("memory/MEMORY")
-    assert node.path.startswith("profiles/shared/memory/")
+    node = result.store.get_node("graph-content/entry")
+    assert node.path.startswith("profiles/shared/graph-content/")
 
 
 def test_build_errors_on_unresolved_curated_link(tmp_path):
@@ -112,10 +120,8 @@ def test_id_from_path_handles_known_locations():
         "memory/rules/data-engineering.md": "rules/data-engineering",
         "rules/data-engineering.md": "rules/data-engineering",
         "memory/skill-fixes/silver-do-not-trust-bronze-types.md": "skill-fixes/silver-do-not-trust-bronze-types",
-        "memory/lux_energy_price/project.md": "topic/lux_energy_price/project",
         ".claude/skills/fabric-transform/SKILL.md": "skills/fabric-transform",
         "profiles/skills/fabric-transform/SKILL.md": "skills/fabric-transform",
-        "templates/runbook.md": "templates/runbook",
     }
     for path, expected in cases.items():
         assert id_from_path(path) == expected, f"{path} -> {id_from_path(path)} != {expected}"

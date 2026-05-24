@@ -12,7 +12,7 @@ def _make_store_with_bodies():
         "skills/fabric-transform": "Silver Gold transformations with Delta MERGE idempotent upsert pattern.",
         "rules/data-engineering": "Pipelines must be idempotent and use MERGE not INSERT OVERWRITE.",
         "skills/fabric-ingest": "Bronze ingestion from raw source files. No MERGE here.",
-        "templates/runbook": "Runbook template — incident steps.",
+        "rules/security": "Security rules for secrets handling and PII masking before persistence.",
     }
     for nid, body in bodies.items():
         title = nid.split("/")[-1].replace("-", " ")
@@ -53,8 +53,8 @@ def test_index_pickle_round_trip(tmp_path):
     save_index(out, index)
     loaded = load_index(out)
     assert loaded.node_ids == index.node_ids
-    hits = search(store, loaded, "incident runbook", k=2)
-    assert hits[0].id == "templates/runbook"
+    hits = search(store, loaded, "secrets PII masking", k=2)
+    assert hits[0].id == "rules/security"
 
 
 def test_search_unranked_token_returns_empty_results():

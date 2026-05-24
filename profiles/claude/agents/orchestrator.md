@@ -17,7 +17,7 @@ skills:
 
 # Orchestrator
 
-Read `memory/MEMORY.md` and `memory/project.md` first. If the request concerns a specific topic, also read `memory/<topic>/project.md`. You are the only agent that routes work. All agents report back to you — never to each other.
+Call `graph_get_entry` first to read the mandatory setup gate. Use `graph_search` and `graph_get_linked` to discover relevant project context — there is no `memory/project.md` to read. You are the only agent that routes work. All agents report back to you — never to each other.
 
 ## Routing — initial requests
 

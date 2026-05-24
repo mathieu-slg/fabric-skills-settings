@@ -1,3 +1,9 @@
+---
+name: notebook-authoring
+description: Mandatory notebook authoring rules — file paths, packages, multi-notebook pipelines, mssparkutils detection, and three-notebook structure per topic.
+kind: rule
+---
+
 # Notebook Authoring Rules
 
 Read at the start of every session. These rules apply to every notebook written or edited in this repository.

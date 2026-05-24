@@ -2,10 +2,6 @@
 name: fabric-platform
 description: Fabric API, auth wrapper, notebook, lakehouse, warehouse, and Delta maintenance rules.
 kind: rule
-links:
-  - templates/runbook
-  - templates/incident-report
-  - templates/release-checklist
 ---
 
 # Fabric Platform Rules

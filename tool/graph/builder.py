@@ -13,21 +13,10 @@ DISCOVER_PATTERNS: tuple[tuple[str, str], ...] = (
     ("profiles/shared/graph-content/**/*.md", "content"),
     ("profiles/skills/*/SKILL.md", "skill"),
     ("profiles/skills/*/sections/*.md", "content"),
-    ("profiles/claude/agents/*.md", "agent"),
-    (".claude/agents/*.md", "agent"),
-    ("profiles/shared/memory/*.md", "memory"),
     ("rules/*.md", "rule"),
-    ("profiles/shared/templates/*.md", "template"),
-    ("templates/*.md", "template"),
     ("memory/graph-content/**/*.md", "content"),
-    ("memory/MEMORY.md", "memory"),
-    ("memory/project.md", "memory"),
-    ("memory/notebook-authoring.md", "memory"),
-    ("memory/RTK.md", "memory"),
     ("memory/rules/*.md", "rule"),
     ("memory/skill-fixes/*.md", "skill-fix"),
-    ("memory/runbooks/*.md", "runbook"),
-    ("memory/security/*.md", "security"),
     (".claude/skills/*/SKILL.md", "skill"),
     (".claude/skills/*/sections/*.md", "content"),
     (".agents/skills/*/SKILL.md", "skill"),
@@ -57,9 +46,8 @@ def _read_markdown(path: Path) -> tuple[dict, str]:
 def _discover(root: Path) -> list[Path]:
     """Walk DISCOVER_PATTERNS in declared order; sort within each pattern for determinism.
 
-    The pattern order is meaningful: when two paths resolve to the same node id
-    (e.g. `profiles/shared/memory/MEMORY.md` and `memory/MEMORY.md` in a source
-    repo), the source-of-truth pattern listed first wins.
+    The pattern order is meaningful: when two paths resolve to the same node id,
+    the source-of-truth pattern listed first wins.
     """
     found: list[Path] = []
     seen: set[Path] = set()

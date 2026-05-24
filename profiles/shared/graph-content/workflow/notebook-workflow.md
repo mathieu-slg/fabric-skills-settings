@@ -7,6 +7,7 @@ links:
   - graph-content/workflow/workspace-management
   - graph-content/diagnostics/smoke-test-diagnostics
   - skills/fabric-notebook-loop
+  - rules/notebook-authoring
 ---
 
 # Notebook workflow

@@ -13,27 +13,49 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tool"))
+sys.path.insert(0, str(ROOT / "build"))
 
 from graph.builder import build  # noqa: E402
 from graph.search import build_bm25_index, save_index  # noqa: E402
+from graph_build.visualize import render_graph_svg  # noqa: E402
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, default=Path.cwd(), help="repo root to index")
+    parser.add_argument(
+        "--target",
+        "--root",
+        dest="target",
+        type=Path,
+        default=Path.cwd(),
+        help="repo to index (default: current directory). --root is accepted as an alias.",
+    )
     parser.add_argument(
         "--out",
         type=Path,
         default=None,
-        help="graph.json output path (default: <root>/memory/.graph/graph.json)",
+        help="graph.json output path (default: <target>/memory/.graph/graph.json)",
     )
     parser.add_argument(
         "--bm25",
         type=Path,
         default=None,
-        help="BM25 pickle output (default: <root>/memory/.graph/graph-bm25.pkl)",
+        help="BM25 pickle output (default: <target>/memory/.graph/graph-bm25.pkl)",
     )
-    parser.add_argument("--validate", action="store_true", help="run validation, print findings")
+    parser.add_argument(
+        "--svg",
+        type=Path,
+        default=None,
+        help="SVG output path (default: <target>/memory/.graph/materialized-graph.svg)",
+    )
+    parser.add_argument("--no-svg", action="store_true", help="skip SVG rendering")
+    parser.add_argument(
+        "--dry-run",
+        "--validate",
+        dest="validate",
+        action="store_true",
+        help="run validation without writing artifacts (alias: --validate)",
+    )
     parser.add_argument("--strict", action="store_true", help="treat orphan warnings as errors")
     parser.add_argument("--stats", action="store_true", help="print node-kind counts and exit")
     return parser.parse_args(argv)
@@ -41,7 +63,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv if argv is not None else sys.argv[1:])
-    root = args.root.resolve()
+    root = args.target.resolve()
     graph_dir = root / "memory" / ".graph"
     out_path = args.out or (graph_dir / "graph.json")
     bm25_path = args.bm25 or (graph_dir / "graph-bm25.pkl")
@@ -72,6 +94,12 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"wrote: {_pretty_path(out_path, root)} ({sum(store.kinds().values())} nodes, {store.graph.number_of_edges()} edges)")
     print(f"wrote: {_pretty_path(bm25_path, root)}")
+
+    if not args.no_svg:
+        svg_path = args.svg or (graph_dir / "materialized-graph.svg")
+        render_graph_svg(store, svg_path, title="Materialized knowledge graph", source=out_path)
+        print(f"wrote: {_pretty_path(svg_path, root)}")
+
     if args.stats:
         for k, v in sorted(store.kinds().items()):
             print(f"  {k:14s} {v}")

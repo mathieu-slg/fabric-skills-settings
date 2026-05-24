@@ -4,8 +4,6 @@ description: Review code and pipelines against OWASP Data Security Top 10 — in
 links:
   - rules/security
   - rules/fabric-platform
-  - templates/security-review
-  - templates/access-review
 tools:
   - Read
   - Bash

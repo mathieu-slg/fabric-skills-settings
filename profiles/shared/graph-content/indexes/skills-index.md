@@ -3,6 +3,7 @@ name: skills-index
 description: Catalogue of installed skills with one-liner descriptions. Use to pick the right skill before starting work.
 kind: content
 links:
+  - skills/rtk
   - skills/fabric-ingest
   - skills/fabric-transform
   - skills/fabric-model
@@ -22,6 +23,7 @@ links:
 
 Use these skills via the Claude Code skill machinery (`.claude/skills/<name>/SKILL.md`) or the Codex skill loader (`.agents/skills/<name>/SKILL.md`).
 
+- `rtk` — token-optimizing shell proxy. Prefix every shell command with `rtk` (Claude Code applies it automatically via the Bash hook). See [[skills/rtk]].
 - `fabric-ingest` — source-to-Bronze ingestion. See [[skills/fabric-ingest]].
 - `fabric-transform` — developer-owned Silver/Gold Spark transformations and MERGE patterns; rule anchor: DE-06. See [[skills/fabric-transform]].
 - `fabric-model` — developer-owned Gold facts, dimensions, KPIs, and semantic-model-aligned outputs; rule anchor: FP-08. See [[skills/fabric-model]].

@@ -1,3 +1,8 @@
+---
+name: rtk
+description: Prefix shell commands with rtk to apply the token-optimizing proxy (60–90% savings on Git, pytest, ruff, Fabric CLI, file ops).
+---
+
 # RTK Token Optimizer
 
 RTK reduces token consumption 60–90% by filtering and compressing shell output before it reaches the AI.

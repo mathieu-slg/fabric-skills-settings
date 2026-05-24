@@ -18,6 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_SKILLS = {
+    "rtk",
     "fabric-ingest",
     "fabric-transform",
     "fabric-model",
@@ -57,7 +58,7 @@ SKILLS_INDEX_FILE = GRAPH_CONTENT_DIR / "indexes" / "skills-index.md"
 
 PROFILE_MAX_LINES = 50
 PROFILE_ANCHOR = "You know NOTHING about this project except how to call the graph tool"
-PROFILE_ENTRY_TOOL = "mcp__fabric-graph__get_entry"
+PROFILE_ENTRY_TOOL = "graph_get_entry"
 PROFILE_FORBIDDEN_SECTION_NAMES = [
     "## Pipeline Structure",
     "## Tool Layout",
@@ -111,7 +112,6 @@ def validate_profiles(errors: list[str]) -> None:
     require(ROOT / "profiles" / "claude" / "settings.local.json", errors)
     if (ROOT / "profiles" / "claude" / "settings.json").exists():
         errors.append("profiles/claude/settings.json must not exist; Claude local installs use settings.local.json")
-    require(ROOT / "profiles" / "shared" / "memory" / "MEMORY.md", errors)
     require(ROOT / "profiles" / "shared" / "project-layout" / "memory" / "rules" / "data-engineering.md", errors)
     require(ROOT / "profiles" / "shared" / "project-layout" / "memory" / "rules" / "fabric-platform.md", errors)
     require(ROOT / "profiles" / "shared" / "project-layout" / "memory" / "rules" / "security.md", errors)
@@ -153,7 +153,7 @@ def validate_profiles(errors: list[str]) -> None:
 def validate_profile_minimalism(errors: list[str]) -> None:
     """Hard-minimal profile: <=50 lines, references the graph entry tool,
     contains the anti-drift anchor sentence, and contains NO operational
-    section names (anti-bypass — operational content must live in graph nodes)."""
+    section names (anti-bypass - operational content must live in graph nodes)."""
     for path in PROFILE_FILES:
         if not path.exists():
             continue
@@ -271,10 +271,6 @@ def validate_skill_wiring(errors: list[str]) -> None:
         (
             ROOT / "rules" / "fabric-platform.md",
             ["fabric-model"],
-        ),
-        (
-            ROOT / "docs" / "tooling-map.md",
-            ["fabric-transform", "fabric-model", "fabric-validate", "DE-06", "FP-08", "DE-04"],
         ),
     ]
     for path, phrases in required:

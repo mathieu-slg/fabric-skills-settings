@@ -2,9 +2,6 @@
 name: security
 description: Credentials, PII, logging, dependency, inventory, and compliance rules — OWASP-mapped.
 kind: rule
-links:
-  - templates/security-review
-  - templates/access-review
 ---
 
 # Security Rules

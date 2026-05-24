@@ -28,7 +28,7 @@ REFRESHABLE_SCAFFOLD_MARKERS = {
     Path("tool/semantic-model/inspect.py"):              "Inspect Microsoft Fabric Semantic Models",
     Path("tool/pipeline/manage.py"):                      "Create, deploy, and test a Fabric Data Pipeline that chains topic notebooks",
     Path("tool/mcp/server.py"):                           "Minimal MCP server that exposes selected Microsoft Fabric CLI commands",
-    Path("tool/mcp/graph-server.py"):                     "MCP server exposing the knowledge graph as `mcp__fabric-graph__*` tools",
+    Path("tool/mcp/graph-server.py"):                     "MCP server exposing the knowledge graph through the `fabric-graph` MCP `graph_*` tools",
     Path("tool/graph/__init__.py"):                       "Knowledge graph over the Fabric agent profile vault",
     Path("tool/graph/schema.py"):                         "Node, Edge, frontmatter parser, and path -> id mapping for the graph",
     Path("tool/graph/store.py"):                          "networkx-backed graph store with atomic JSON save/load",
@@ -139,9 +139,6 @@ def collect_shared_files() -> list[tuple[Path, Path, bool]]:
         for src in sorted((shared / "graph-content").rglob("*")):
             if src.is_file():
                 entries.append((src, Path("memory/graph-content") / src.relative_to(shared / "graph-content"), True))
-    if (shared / "templates").exists():
-        for src in sorted((shared / "templates").glob("*.md")):
-            entries.append((src, Path("templates") / src.name, True))
     for src in sorted((shared / "project-layout").rglob("*")):
         if src.is_file() and "__pycache__" not in src.parts and src.suffix not in {".pyc", ".pyo", ".pyd"}:
             entries.append((src, src.relative_to(shared / "project-layout"), False))
@@ -270,7 +267,7 @@ def write_file(src: Path, dest: Path, managed: bool, args: argparse.Namespace, r
 
 
 _PROFILE_IGNORES: dict[str, list[str]] = {
-    "shared": ["tool/", "contracts/", "data/", "memory/", "runbooks/"],
+    "shared": ["tool/", "contracts/", "data/", "memory/"],
     "codex": ["AGENTS.md", ".agents/", ".codex/"],
     "claude": ["CLAUDE.md", ".claude/"],
 }

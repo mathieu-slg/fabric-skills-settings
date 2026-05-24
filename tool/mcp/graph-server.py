@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MCP server exposing the knowledge graph as `mcp__fabric-graph__*` tools.
+"""MCP server exposing the knowledge graph through the `fabric-graph` MCP `graph_*` tools.
 
 Read-only surface (Phase P2):
   graph_get_entry   - root entry node (mandatory first call per profile rule)
