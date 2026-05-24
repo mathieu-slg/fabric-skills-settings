@@ -70,12 +70,19 @@ def main(argv: list[str] | None = None) -> int:
     bodies = _load_bodies(root, store)
     save_index(bm25_path, build_bm25_index(store, bodies))
 
-    print(f"wrote: {out_path.relative_to(root)} ({sum(store.kinds().values())} nodes, {store.graph.number_of_edges()} edges)")
-    print(f"wrote: {bm25_path.relative_to(root)}")
+    print(f"wrote: {_pretty_path(out_path, root)} ({sum(store.kinds().values())} nodes, {store.graph.number_of_edges()} edges)")
+    print(f"wrote: {_pretty_path(bm25_path, root)}")
     if args.stats:
         for k, v in sorted(store.kinds().items()):
             print(f"  {k:14s} {v}")
     return 0
+
+
+def _pretty_path(path: Path, root: Path) -> str:
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return str(path)
 
 
 def _load_bodies(root: Path, store) -> dict[str, str]:

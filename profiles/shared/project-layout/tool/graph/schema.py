@@ -179,13 +179,15 @@ def id_from_path(repo_relative: str) -> str | None:
     base = p[:-3]
 
     parts = base.split("/")
-    if (
-        len(parts) >= 3
-        and "skills" in parts
-        and parts[-1] == "SKILL"
-    ):
-        skill_name = parts[-2]
-        return f"skills/{skill_name}"
+    if "skills" in parts:
+        idx = parts.index("skills")
+        if (
+            idx + 3 < len(parts)
+            and parts[idx + 2] == "sections"
+        ):
+            return f"skills/{parts[idx + 1]}/{parts[idx + 3]}"
+        if parts[-1] == "SKILL" and idx + 1 < len(parts) and parts[idx + 2] == "SKILL":
+            return f"skills/{parts[idx + 1]}"
 
     if (
         len(parts) >= 3

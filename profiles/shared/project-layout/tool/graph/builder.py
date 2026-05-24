@@ -12,6 +12,7 @@ from .store import GraphStore
 DISCOVER_PATTERNS: tuple[tuple[str, str], ...] = (
     ("profiles/shared/graph-content/**/*.md", "content"),
     ("profiles/skills/*/SKILL.md", "skill"),
+    ("profiles/skills/*/sections/*.md", "content"),
     ("profiles/claude/agents/*.md", "agent"),
     ("profiles/shared/memory/*.md", "memory"),
     ("rules/*.md", "rule"),
@@ -26,7 +27,9 @@ DISCOVER_PATTERNS: tuple[tuple[str, str], ...] = (
     ("memory/runbooks/*.md", "runbook"),
     ("memory/security/*.md", "security"),
     (".claude/skills/*/SKILL.md", "skill"),
+    (".claude/skills/*/sections/*.md", "content"),
     (".agents/skills/*/SKILL.md", "skill"),
+    (".agents/skills/*/sections/*.md", "content"),
 )
 
 SKIP_NAME_PARTS: frozenset[str] = frozenset(
