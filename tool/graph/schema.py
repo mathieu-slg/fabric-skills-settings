@@ -154,10 +154,13 @@ _PATH_PREFIX_TO_ID: tuple[tuple[str, str], ...] = (
     ("memory/security/", "security/"),
     ("memory/", "memory/"),
     ("profiles/shared/graph-content/", "graph-content/"),
+    ("profiles/shared/templates/", "templates/"),
     ("profiles/shared/memory/", "memory/"),
     ("profiles/shared/project-layout/memory/rules/", "rules/"),
     ("profiles/shared/project-layout/memory/", "memory/"),
     ("profiles/claude/agents/", "agents/"),
+    (".claude/agents/", "agents/"),
+    (".agents/agents/", "agents/"),
     ("rules/", "rules/"),
     ("templates/", "templates/"),
 )
