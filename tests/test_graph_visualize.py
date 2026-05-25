@@ -12,6 +12,7 @@ from graph.search import build_bm25_index, save_index
 from graph.store import GraphStore
 from graph_build.visualize import (
     render_agent_capability_graph_svg,
+    render_graph_html,
     render_graph_svg,
     render_materialized_graph_svg,
     validate_materialized_index,
@@ -214,3 +215,88 @@ def test_default_render_hides_non_tree_edges_for_readability(tmp_path):
     assert 'data-edge-count="3"' in text
     assert 'data-edge-mode="tree"' in text
     assert 'data-visible-edge-count="2"' in text
+
+
+# ---------------------------------------------------------------------------
+# HTML renderer tests
+# ---------------------------------------------------------------------------
+
+
+def test_render_graph_html_produces_valid_html(tmp_path):
+    store = _store()
+    out = tmp_path / "graph.html"
+    result = render_graph_html(store, out, title="Test graph")
+    assert result == out
+    text = out.read_text(encoding="utf-8")
+    assert text.startswith("<!DOCTYPE html>")
+    assert "<title>Test graph</title>" in text
+    assert "3 nodes, 2 edges" in text
+
+
+def test_render_graph_html_embeds_node_ids(tmp_path):
+    store = _store()
+    out = tmp_path / "graph.html"
+    render_graph_html(store, out)
+    text = out.read_text(encoding="utf-8")
+    # All node IDs appear in the embedded JSON
+    assert "graph-content/entry" in text
+    assert "graph-content/session/session-start" in text
+    assert "skills/fabric-ingest" in text
+
+
+def test_render_graph_html_embeds_edges(tmp_path):
+    store = _store()
+    out = tmp_path / "graph.html"
+    render_graph_html(store, out)
+    text = out.read_text(encoding="utf-8")
+    assert '"curated"' in text
+    assert '"auto-path"' in text
+
+
+def test_render_graph_html_creates_parent_dirs(tmp_path):
+    store = _store()
+    out = tmp_path / "deep" / "nested" / "graph.html"
+    render_graph_html(store, out)
+    assert out.exists()
+
+
+def test_render_graph_html_escapes_title_arg(tmp_path):
+    store = GraphStore()
+    store.add_node(_node("graph-content/entry", "entry"))
+    out = tmp_path / "graph.html"
+    render_graph_html(store, out, title="My <Graph> & More")
+    text = out.read_text(encoding="utf-8")
+    # graph-level title is HTML-escaped in both <title> and <h1>
+    assert "My &lt;Graph&gt; &amp; More" in text
+    # raw unescaped form must not appear outside the JSON data block
+    assert "<script>" in text
+
+
+def test_render_graph_html_no_script_injection(tmp_path):
+    store = GraphStore()
+    store.add_node(
+        Node(
+            id="graph-content/entry",
+            path="",
+            title="safe",
+            description="</script><script>alert(1)</script>",
+            kind="entry",
+            frontmatter={},
+            mtime=1.0,
+        )
+    )
+    out = tmp_path / "graph.html"
+    render_graph_html(store, out)
+    text = out.read_text(encoding="utf-8")
+    # The raw </script> must not appear inside the embedded JSON block
+    assert "<\\/script>" in text or "</script>" not in text.split("const GRAPH")[1].split("</script>")[0]
+
+
+def test_render_graph_html_single_node_no_edges(tmp_path):
+    store = GraphStore()
+    store.add_node(_node("graph-content/entry", "entry"))
+    out = tmp_path / "graph.html"
+    result = render_graph_html(store, out, title="Single node")
+    assert result.exists()
+    text = out.read_text(encoding="utf-8")
+    assert "1 nodes, 0 edges" in text

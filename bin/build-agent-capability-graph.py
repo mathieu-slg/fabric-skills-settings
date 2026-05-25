@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "build"))
 
 from graph_build.agent_capabilities import build_agent_capability_graph  # noqa: E402
 from graph.builder import build  # noqa: E402
-from graph_build.visualize import render_graph_svg  # noqa: E402
+from graph_build.visualize import render_graph_html  # noqa: E402
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -33,12 +33,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="output path (default: <target>/memory/.graph/agent-capabilities.json)",
     )
     parser.add_argument(
-        "--svg",
+        "--html",
         type=Path,
         default=None,
-        help="SVG output path (default: <target>/memory/.graph/agent-capabilities.svg)",
+        help="HTML output path (default: <target>/memory/.graph/agent-capabilities.html)",
     )
-    parser.add_argument("--no-svg", action="store_true", help="skip SVG rendering")
+    parser.add_argument("--no-html", action="store_true", help="skip HTML rendering")
     parser.add_argument(
         "--dry-run",
         "--validate",
@@ -77,17 +77,10 @@ def main(argv: list[str] | None = None) -> int:
     result.store.save(out_path, built_by="bin/build-agent-capability-graph.py")
     print(f"wrote: {_pretty_path(out_path, root)} ({result.store.graph.number_of_nodes()} nodes, {result.store.graph.number_of_edges()} edges)")
 
-    if not args.no_svg:
-        svg_path = args.svg or (out_path.parent / "agent-capabilities.svg")
-        render_graph_svg(
-            result.store,
-            svg_path,
-            title="Agent capability graph",
-            source=out_path,
-            edge_mode="all",
-            central_node="capabilities/orchestrator",
-        )
-        print(f"wrote: {_pretty_path(svg_path, root)}")
+    if not args.no_html:
+        html_path = args.html or (out_path.parent / "agent-capabilities.html")
+        render_graph_html(result.store, html_path, title="Agent capability graph", source=out_path)
+        print(f"wrote: {_pretty_path(html_path, root)}")
 
     if args.stats:
         for k, v in sorted(result.store.kinds().items()):

@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "build"))
 
 from graph.builder import build  # noqa: E402
 from graph.search import build_bm25_index, save_index  # noqa: E402
-from graph_build.visualize import render_graph_svg  # noqa: E402
+from graph_build.visualize import render_graph_html  # noqa: E402
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -43,12 +43,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="BM25 pickle output (default: <target>/memory/.graph/graph-bm25.pkl)",
     )
     parser.add_argument(
-        "--svg",
+        "--html",
         type=Path,
         default=None,
-        help="SVG output path (default: <target>/memory/.graph/materialized-graph.svg)",
+        help="HTML output path (default: <target>/memory/.graph/materialized-graph.html)",
     )
-    parser.add_argument("--no-svg", action="store_true", help="skip SVG rendering")
+    parser.add_argument("--no-html", action="store_true", help="skip HTML rendering")
     parser.add_argument(
         "--dry-run",
         "--validate",
@@ -95,10 +95,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"wrote: {_pretty_path(out_path, root)} ({sum(store.kinds().values())} nodes, {store.graph.number_of_edges()} edges)")
     print(f"wrote: {_pretty_path(bm25_path, root)}")
 
-    if not args.no_svg:
-        svg_path = args.svg or (graph_dir / "materialized-graph.svg")
-        render_graph_svg(store, svg_path, title="Materialized knowledge graph", source=out_path)
-        print(f"wrote: {_pretty_path(svg_path, root)}")
+    if not args.no_html:
+        html_path = args.html or (graph_dir / "materialized-graph.html")
+        render_graph_html(store, html_path, title="Materialized knowledge graph", source=out_path)
+        print(f"wrote: {_pretty_path(html_path, root)}")
 
     if args.stats:
         for k, v in sorted(store.kinds().items()):
