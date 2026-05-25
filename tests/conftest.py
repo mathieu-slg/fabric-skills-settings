@@ -1,9 +1,16 @@
-"""Add tool/ and packaging/builders/ to sys.path so tests can import runtime + build-time modules."""
+"""sys.path setup for tests.
+
+Repo root first so `from server.tools.X import tools as X_tools` works.
+Plus the cli/tools/<area>/ dirs because their build.py / manage.py modules
+are loaded via importlib from a few test files.
+"""
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tool" / "notebook"))
-sys.path.insert(0, str(ROOT / "tool" / "pipeline"))
-sys.path.insert(0, str(ROOT / "tool"))
-sys.path.insert(0, str(ROOT / "packaging" / "builders"))
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "cli" / "tools" / "notebook"))
+sys.path.insert(0, str(ROOT / "cli" / "tools" / "pipeline"))
+sys.path.insert(0, str(ROOT / "server" / "tools"))
+sys.path.insert(0, str(ROOT / "server"))
+sys.path.insert(0, str(ROOT / "server" / "builders"))

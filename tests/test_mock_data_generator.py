@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GENERATOR_PATH = ROOT / "tool" / "data" / "mock-data-generator.py"
+GENERATOR_PATH = ROOT / "server" / "tools" / "data" / "mock-data-generator.py"
 
 
 def load_generator():

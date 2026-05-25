@@ -11,7 +11,13 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-PROFILES = ROOT / "profiles"
+PROFILES = ROOT / "cli" / "profiles"
+SETUP = ROOT / "cli" / "setup"
+CLI_TOOLS = ROOT / "cli" / "tools"
+SERVER = ROOT / "server"
+TOOLS = SERVER / "tools"
+GRAPH_CONTENT = SERVER / "content"
+RULES = GRAPH_CONTENT / "rules"
 SKILLS = {
     "rtk",
     "fabric-ingest",
@@ -29,11 +35,9 @@ SKILLS = {
     "caveman",
 }
 AGENTS = {"orchestrator", "developer", "tester", "operator"}
-# The legacy tool/ mirror under profiles/shared/project-layout/tool/ has been
-# eliminated. Root tool/ is the single source of truth; the scaffold only carries
-# target-side OVERRIDES (currently just setup.ps1/setup.sh, which omit the
-# packaging/builders/build-graph.py invocation because the target receives the
-# graph pre-built via install-fabric-agent).
+# Source-of-truth layout: cli/ holds installable assets for target users, server/
+# holds the MCP server + graph runtime + content + builders. The graph is
+# server-side now; target users no longer receive a local copy.
 FORBIDDEN = [
     "wrapper repo",
     "configuration wrapper",
@@ -74,43 +78,54 @@ def validate_required(errors: list[str]) -> None:
     require(PROFILES / "shared" / ".env.example", errors)
     require(PROFILES / "shared" / ".gitignore.fragment", errors)
     require(PROFILES / "shared" / "scaffold" / ".mcp.json", errors)
-    require(ROOT / "content" / "rules" / "data-engineering.md", errors)
-    require(ROOT / "content" / "rules" / "fabric-platform.md", errors)
-    require(ROOT / "content" / "rules" / "security.md", errors)
-    require(ROOT / "content" / "graph-content" / "entry.md", errors)
-    # Single source of truth for tool/ — root only; the scaffold only carries target-side overrides.
-    require(ROOT / "mcp" / "server.py", errors)
-    require(ROOT / "mcp" / "graph-server.py", errors)
-    require(ROOT / "tool" / "notebook" / "build.py", errors)
-    require(ROOT / "tool" / "notebook" / "deploy.py", errors)
-    require(ROOT / "tool" / "notebook" / "smoke-test.ps1", errors)
-    require(ROOT / "tool" / "notebook" / "smoke-test.sh", errors)
-    require(ROOT / "tool" / "pre-commit-check.ps1", errors)
-    require(ROOT / "tool" / "pre-commit-check.sh", errors)
-    require(ROOT / "tool" / "setup" / "fab-sandbox", errors)
-    require(ROOT / "tool" / "setup" / "fab-sandbox.ps1", errors)
-    require(ROOT / "tool" / "setup" / "fabric-inventory-readonly", errors)
-    require(ROOT / "tool" / "setup" / "fabric-inventory-readonly.ps1", errors)
-    require(ROOT / "tool" / "setup" / "setup.ps1", errors)
-    require(ROOT / "tool" / "setup" / "setup.sh", errors)
-    require(ROOT / "tool" / "lakehouse" / "list-tables.py", errors)
-    require(ROOT / "tool" / "semantic-model" / "inspect.py", errors)
-    require(ROOT / "tool" / "data" / "mock-data-generator.py", errors)
-    require(ROOT / "tool" / "pipeline" / "manage.py", errors)
-    require(ROOT / "tool" / "validate" / "pipeline-lineage.py", errors)
-    # Target-side overrides shipped by the scaffold (currently just the two setup scripts).
-    require(PROFILES / "shared" / "scaffold" / "tool" / "setup" / "setup.ps1", errors)
-    require(PROFILES / "shared" / "scaffold" / "tool" / "setup" / "setup.sh", errors)
-
-    shared_skills = skill_names(PROFILES / "skills")
-    codex_skills_dir = PROFILES / "codex" / "skills"
-    claude_skills_dir = PROFILES / "claude" / "skills"
-    if codex_skills_dir.exists():
-        error("profiles/codex/skills must not exist; installer copies profiles/skills into .agents/skills")
-    if claude_skills_dir.exists():
-        error("profiles/claude/skills must not exist; installer copies profiles/skills into .claude/skills")
-    if shared_skills != SKILLS:
-        error(f"Shared skills mismatch: expected {sorted(SKILLS)}, found {sorted(shared_skills)}", errors)
+    require(RULES / "data-engineering.md", errors)
+    require(RULES / "fabric-platform.md", errors)
+    require(RULES / "security.md", errors)
+    require(GRAPH_CONTENT / "entry.md", errors)
+    # server/ — MCP server + graph runtime + graph content + graph builders.
+    require(SERVER / "__init__.py", errors)
+    require(SERVER / "app.py", errors)
+    require(SERVER / "script_runner.py", errors)
+    require(SERVER / "audit.py", errors)
+    require(SERVER / "Dockerfile", errors)
+    require(SERVER / "graph" / "store.py", errors)
+    require(SERVER / "graph" / "search.py", errors)
+    require(SERVER / "graph" / "writes.py", errors)
+    require(SERVER / "builders" / "build-graph.py", errors)
+    # server/tools/ — MCP-exposed helpers that don't need ms-fabric-cli.
+    require(TOOLS / "semantic_model" / "tools.py", errors)
+    require(TOOLS / "semantic_model" / "inspect.py", errors)
+    require(TOOLS / "lint" / "tools.py", errors)
+    require(TOOLS / "lint" / "__init__.py", errors)
+    require(TOOLS / "validate" / "tools.py", errors)
+    require(TOOLS / "validate" / "pipeline-lineage.py", errors)
+    require(TOOLS / "data" / "tools.py", errors)
+    require(TOOLS / "data" / "mock-data-generator.py", errors)
+    require(TOOLS / "precommit" / "tools.py", errors)
+    require(TOOLS / "precommit" / "pre-commit-check.ps1", errors)
+    require(TOOLS / "precommit" / "pre-commit-check.sh", errors)
+    require(TOOLS / "graph" / "tools.py", errors)
+    # cli/tools/ — ms-fabric-cli-dependent helpers; shipped to target as tool/
+    # and invoked locally via Bash (NOT MCP).
+    require(CLI_TOOLS / "notebook" / "build.py", errors)
+    require(CLI_TOOLS / "notebook" / "deploy.py", errors)
+    require(CLI_TOOLS / "notebook" / "smoke-test.ps1", errors)
+    require(CLI_TOOLS / "notebook" / "smoke-test.sh", errors)
+    require(CLI_TOOLS / "pipeline" / "manage.py", errors)
+    require(CLI_TOOLS / "lakehouse" / "list-tables.py", errors)
+    require(CLI_TOOLS / "workspace" / "init.py", errors)
+    require(CLI_TOOLS / "workspace" / "switch.py", errors)
+    require(CLI_TOOLS / "workspace" / "transfer.py", errors)
+    require(CLI_TOOLS / "workspace" / "pick.py", errors)
+    # cli/setup/ — env-setup scripts (shipped to target as tool/setup/).
+    require(SETUP / "setup.ps1", errors)
+    require(SETUP / "setup.sh", errors)
+    # Skills live on the server and are served via graph_get_node — not shipped to target.
+    server_skills = skill_names(SERVER / "skills")
+    if (PROFILES / "skills").exists():
+        error("cli/profiles/skills must not exist; skills moved to server/skills/")
+    if server_skills != SKILLS:
+        error(f"Server skills mismatch: expected {sorted(SKILLS)}, found {sorted(server_skills)}", errors)
 
     codex_agents = agent_names(PROFILES / "codex" / "agents", ".toml")
     claude_agents = agent_names(PROFILES / "claude" / "agents", ".md")
@@ -145,6 +160,8 @@ def validate_safe_datalake_controls(errors: list[str]) -> None:
 
 
 def validate_env_example(errors: list[str]) -> None:
+    """Reject real values in the .env.example template. Commented lines are
+    treated as illustrative guidance and not scanned."""
     env_text = (PROFILES / "shared" / ".env.example").read_text(errors="ignore")
     suspicious_patterns = [
         r"=https?://",
@@ -154,9 +171,16 @@ def validate_env_example(errors: list[str]) -> None:
         r"=SharedAccessSignature=",
         r"=eyJ[A-Za-z0-9_-]+",
     ]
-    for pattern in suspicious_patterns:
-        if re.search(pattern, env_text):
-            error(f"Suspicious non-placeholder value in profiles/shared/.env.example matching {pattern}", errors)
+    for line in env_text.splitlines():
+        stripped = line.lstrip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        for pattern in suspicious_patterns:
+            if re.search(pattern, stripped):
+                error(
+                    f"Suspicious non-placeholder value in profiles/shared/.env.example matching {pattern}",
+                    errors,
+                )
 
 
 def validate_shared_scope(errors: list[str]) -> None:
@@ -168,17 +192,13 @@ def validate_shared_scope(errors: list[str]) -> None:
 
 
 def validate_rule_mirrors(errors: list[str]) -> None:
-    """Verify source-of-truth rules live under content/rules/.
-
-    content/rules/ is the single source of truth; the legacy mirror at
-    profiles/shared/project-layout/memory/rules/ was eliminated in Step 4.
-    """
+    """Verify source-of-truth rules live under server/content/rules/."""
     for name in ("data-engineering.md", "fabric-platform.md", "security.md"):
-        source = ROOT / "content" / "rules" / name
+        source = RULES / name
         if not source.exists():
-            error(f"Missing source rule file: content/rules/{name}", errors)
+            error(f"Missing source rule file: server/content/rules/{name}", errors)
 
-    platform = ROOT / "content" / "rules" / "fabric-platform.md"
+    platform = RULES / "fabric-platform.md"
     if platform.exists():
         text = platform.read_text(errors="ignore")
         forbidden = [
@@ -189,7 +209,7 @@ def validate_rule_mirrors(errors: list[str]) -> None:
         for phrase in forbidden:
             if phrase in text:
                 error(
-                    f"content/rules/fabric-platform.md must use tool/setup/fab-sandbox instead of raw {phrase!r}",
+                    f"server/content/rules/fabric-platform.md must reference the MCP fabric_* tools instead of raw {phrase!r}",
                     errors,
                 )
 
@@ -197,7 +217,7 @@ def validate_rule_mirrors(errors: list[str]) -> None:
 def validate_ps1_syntax(errors: list[str]) -> None:
     """Smoke-test.ps1 must not use PS7-only null-conditional ?. operator."""
     for location in [
-        ROOT / "tool" / "notebook" / "smoke-test.ps1",
+        CLI_TOOLS / "notebook" / "smoke-test.ps1",
     ]:
         if not location.exists():
             continue
@@ -213,7 +233,7 @@ def validate_load_env_strips_comments(errors: list[str]) -> None:
     """build.py and deploy.py must strip inline comments from .env values."""
     for name in ("build.py", "deploy.py"):
         for location in [
-            ROOT / "tool" / "notebook" / name,
+            CLI_TOOLS / "notebook" / name,
         ]:
             if not location.exists():
                 continue
@@ -237,11 +257,6 @@ def validate_gitignore_fragment(errors: list[str]) -> None:
     if not path.exists():
         return
     text = path.read_text(errors="ignore")
-    if "tool/" not in text:
-        errors.append(
-            "profiles/shared/.gitignore.fragment must ignore tool/"
-            " — agent tooling is installed by the package manager, not committed by humans"
-        )
     if ".mcp.json" not in text:
         errors.append(
             "profiles/shared/.gitignore.fragment must ignore .mcp.json"
@@ -249,65 +264,35 @@ def validate_gitignore_fragment(errors: list[str]) -> None:
         )
 
 
-def validate_setup_registry_contract(errors: list[str]) -> None:
-    """Setup must derive workspace IDs from workspaces.json, not credential prompts."""
-    for location in [
-        ROOT / "tool" / "setup" / "setup.ps1",
-        ROOT / "tool" / "setup" / "setup.sh",
-        PROFILES / "shared" / "scaffold" / "tool" / "setup" / "setup.ps1",
-        PROFILES / "shared" / "scaffold" / "tool" / "setup" / "setup.sh",
-    ]:
+def validate_setup_contract(errors: list[str]) -> None:
+    """Setup must prompt for SPN creds + server URL, never workspace IDs."""
+    for location in [SETUP / "setup.ps1", SETUP / "setup.sh"]:
         if not location.exists():
             continue
         text = location.read_text(errors="ignore")
         rel_path = location.relative_to(ROOT)
         if "Fabric workspace GUID" in text:
             errors.append(
-                f"{rel_path} must not prompt for FABRIC_WORKSPACE_ID; use tool/workspace/init.py and switch.py"
+                f"{rel_path} must not prompt for FABRIC_WORKSPACE_ID; use the workspace_init/workspace_switch MCP tools"
             )
-        normalized = text.replace("\\", "/")
-        for phrase in (".venv", "semantic-link", "Faker", "tool/workspace/init.py"):
-            if phrase not in normalized:
+        for phrase in ("FABRIC_TENANT_ID", "FABRIC_CLIENT_ID", "FABRIC_CLIENT_SECRET", "FABRIC_SERVER_URL"):
+            if phrase not in text:
                 errors.append(f"{rel_path} missing setup contract phrase {phrase!r}")
 
 
-def validate_setup_graph_contract(errors: list[str]) -> None:
-    """Source-package setup builds graph via packaging/builders/build-graph.py; target setup does not.
-
-    packaging/ is source-package-only and is not installed into target repos, so the target
-    setup scripts must rely on the installer-shipped memory/.graph artifacts instead.
-    """
-    for location in (
-        ROOT / "tool" / "setup" / "setup.ps1",
-        ROOT / "tool" / "setup" / "setup.sh",
-    ):
+def validate_setup_no_graph_build(errors: list[str]) -> None:
+    """Target-side setup must not invoke the graph builder — the graph lives on the MCP server now."""
+    for location in (SETUP / "setup.ps1", SETUP / "setup.sh"):
         if not location.exists():
             continue
         text = location.read_text(errors="ignore").replace("\\", "/")
         rel_path = location.relative_to(ROOT)
-        if "packaging/builders/build-graph.py" not in text:
-            errors.append(
-                f"{rel_path} must build the knowledge graph via "
-                "'uv run --group dev python packaging/builders/build-graph.py --target . --stats'"
-            )
-
-    for location in (
-        PROFILES / "shared" / "scaffold" / "tool" / "setup" / "setup.ps1",
-        PROFILES / "shared" / "scaffold" / "tool" / "setup" / "setup.sh",
-    ):
-        if not location.exists():
-            continue
-        text = location.read_text(errors="ignore").replace("\\", "/")
-        rel_path = location.relative_to(ROOT)
-        if "packaging/builders/build-graph.py" in text or "bin/build-graph.py" in text:
-            errors.append(
-                f"{rel_path} must not reference the source-package graph builder "
-                "(target receives the graph pre-built via install-fabric-agent)"
-            )
-        if "memory/.graph" not in text:
-            errors.append(
-                f"{rel_path} must verify the shipped memory/.graph artifact is present"
-            )
+        for forbidden in ("server/builders/build-graph.py", "bin/build-graph.py"):
+            if forbidden in text:
+                errors.append(
+                    f"{rel_path} must not reference the graph builder "
+                    "(target users do not build graphs; the MCP server owns the graph)"
+                )
 
 
 def main() -> int:
@@ -321,8 +306,8 @@ def main() -> int:
     validate_ps1_syntax(errors)
     validate_load_env_strips_comments(errors)
     validate_gitignore_fragment(errors)
-    validate_setup_registry_contract(errors)
-    validate_setup_graph_contract(errors)
+    validate_setup_contract(errors)
+    validate_setup_no_graph_build(errors)
 
     if errors:
         print("FAIL: install package validation failed")

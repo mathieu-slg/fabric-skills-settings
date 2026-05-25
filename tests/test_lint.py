@@ -16,10 +16,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "server" / "tools"))
 
-from tool.lint import LINTS  # noqa: E402
-from tool.lint.core import run_all  # noqa: E402
+from lint import LINTS  # noqa: E402
+from lint.core import run_all  # noqa: E402
 
 
 def _write(path: Path, text: str) -> None:

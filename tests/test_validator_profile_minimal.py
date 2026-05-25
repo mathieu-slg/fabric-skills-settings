@@ -50,22 +50,22 @@ def _make_baseline_source_repo(root: Path) -> None:
         "fabric-notebook-loop", "fabric-ops", "fabric-pipeline", "semantic-model",
         "mock-data", "prd", "grill-me", "git-commit", "caveman",
     ]:
-        (root / "profiles" / "skills" / skill).mkdir(parents=True, exist_ok=True)
-        (root / "profiles" / "skills" / skill / "SKILL.md").write_text(f"# {skill}\n")
+        (root / "server" / "skills" / skill).mkdir(parents=True, exist_ok=True)
+        (root / "server" / "skills" / skill / "SKILL.md").write_text(f"# {skill}\n")
 
-    (root / "profiles" / "claude" / "agents").mkdir(parents=True, exist_ok=True)
-    (root / "profiles" / "codex" / "agents").mkdir(parents=True, exist_ok=True)
+    (root / "cli" / "profiles" / "claude" / "agents").mkdir(parents=True, exist_ok=True)
+    (root / "cli" / "profiles" / "codex" / "agents").mkdir(parents=True, exist_ok=True)
     for agent in ["orchestrator", "developer", "tester", "operator"]:
-        (root / "profiles" / "claude" / "agents" / f"{agent}.md").write_text(
+        (root / "cli" / "profiles" / "claude" / "agents" / f"{agent}.md").write_text(
             f"# {agent}\nfabric-transform fabric-model fabric-validate tester\n"
         )
-        (root / "profiles" / "codex" / "agents" / f"{agent}.toml").write_text(
+        (root / "cli" / "profiles" / "codex" / "agents" / f"{agent}.toml").write_text(
             f"name = '{agent}'\n# fabric-transform fabric-model fabric-validate tester\n"
         )
 
-    (root / "profiles" / "codex" / "config.toml").write_text("")
-    (root / "profiles" / "claude" / "settings.local.json").write_text("{}")
-    content_rules = root / "content" / "rules"
+    (root / "cli" / "profiles" / "codex" / "config.toml").write_text("")
+    (root / "cli" / "profiles" / "claude" / "settings.local.json").write_text("{}")
+    content_rules = root / "server" / "content" / "rules"
     content_rules.mkdir(parents=True, exist_ok=True)
     (content_rules / "data-engineering.md").write_text("# DE\nfabric-transform fabric-validate\n")
     (content_rules / "fabric-platform.md").write_text("# FP\nfabric-model\n")
@@ -77,7 +77,7 @@ def _make_baseline_source_repo(root: Path) -> None:
         "fabric-transform fabric-model fabric-validate DE-06 FP-08 DE-04\n"
     )
 
-    gc = root / "content" / "graph-content"
+    gc = root / "server" / "content"
     (gc / "indexes").mkdir(parents=True, exist_ok=True)
     (gc / "session").mkdir(parents=True, exist_ok=True)
     (gc / "indexes" / "skills-index.md").write_text(
@@ -98,10 +98,15 @@ def _make_baseline_source_repo(root: Path) -> None:
         "tool\\setup\\setup.ps1\n"
         "tool/setup/setup.sh\n"
         "FABRIC_WORKSPACE_ID\n"
-        "fab-sandbox auth login\n"
+        "docker compose up\n"
+        "graph_get_entry\n"
+        "fab --version\n"
+        "fab api workspaces\n"
+        "python tool/workspace/init.py\n"
+        "python tool/workspace/switch.py\n"
+        "python tool/notebook/deploy.py\n"
         "Do **not** read `.env` contents\n"
         "Setup incomplete\n"
-        "verify `.env`, `fab`, and `fab auth`\n"
         "before accepting any Fabric work\n"
         "network lakehouse notebook\n"
     )
@@ -120,8 +125,8 @@ def _hard_minimal_profile_body() -> str:
 def test_validator_passes_with_hard_minimal_profile(tmp_path):
     _make_baseline_source_repo(tmp_path)
     body = _hard_minimal_profile_body()
-    (tmp_path / "profiles" / "claude" / "CLAUDE.md").write_text(body)
-    (tmp_path / "profiles" / "codex" / "AGENTS.md").write_text(body)
+    (tmp_path / "cli" / "profiles" / "claude" / "CLAUDE.md").write_text(body)
+    (tmp_path / "cli" / "profiles" / "codex" / "AGENTS.md").write_text(body)
     code, out = _run_validator(tmp_path)
     assert code == 0, out
 
@@ -129,8 +134,8 @@ def test_validator_passes_with_hard_minimal_profile(tmp_path):
 def test_validator_rejects_bloated_profile_over_50_lines(tmp_path):
     _make_baseline_source_repo(tmp_path)
     fat_body = _hard_minimal_profile_body() + "\n".join(f"line {i}" for i in range(60)) + "\n"
-    (tmp_path / "profiles" / "claude" / "CLAUDE.md").write_text(fat_body)
-    (tmp_path / "profiles" / "codex" / "AGENTS.md").write_text(fat_body)
+    (tmp_path / "cli" / "profiles" / "claude" / "CLAUDE.md").write_text(fat_body)
+    (tmp_path / "cli" / "profiles" / "codex" / "AGENTS.md").write_text(fat_body)
     code, out = _run_validator(tmp_path)
     assert code != 0
     assert "hard-minimal" in out
@@ -139,8 +144,8 @@ def test_validator_rejects_bloated_profile_over_50_lines(tmp_path):
 def test_validator_rejects_profile_without_anchor(tmp_path):
     _make_baseline_source_repo(tmp_path)
     bad = "# Profile\n\nCall graph_get_entry first.\n"
-    (tmp_path / "profiles" / "claude" / "CLAUDE.md").write_text(bad)
-    (tmp_path / "profiles" / "codex" / "AGENTS.md").write_text(bad)
+    (tmp_path / "cli" / "profiles" / "claude" / "CLAUDE.md").write_text(bad)
+    (tmp_path / "cli" / "profiles" / "codex" / "AGENTS.md").write_text(bad)
     code, out = _run_validator(tmp_path)
     assert code != 0
     assert "anti-drift anchor" in out
@@ -149,8 +154,8 @@ def test_validator_rejects_profile_without_anchor(tmp_path):
 def test_validator_rejects_profile_with_operational_section_heading(tmp_path):
     _make_baseline_source_repo(tmp_path)
     bad = _hard_minimal_profile_body() + "\n## Pipeline Structure\n\nstuff here\n"
-    (tmp_path / "profiles" / "claude" / "CLAUDE.md").write_text(bad)
-    (tmp_path / "profiles" / "codex" / "AGENTS.md").write_text(bad)
+    (tmp_path / "cli" / "profiles" / "claude" / "CLAUDE.md").write_text(bad)
+    (tmp_path / "cli" / "profiles" / "codex" / "AGENTS.md").write_text(bad)
     code, out = _run_validator(tmp_path)
     assert code != 0
     assert "operational section heading" in out

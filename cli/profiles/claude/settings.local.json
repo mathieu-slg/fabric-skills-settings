@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "effortLevel": "high",
+  "skillListingBudgetFraction": 0.02,
+  "env": {
+    "CLAUDE_CODE_EFFORT_LEVEL": "high",
+    "ENABLE_PROMPT_CACHING_1H": "1",
+    "CLAUDE_CODE_ATTRIBUTION_HEADER": "0",
+    "BASH_DEFAULT_TIMEOUT_MS": "300000",
+    "BASH_MAX_TIMEOUT_MS": "1800000",
+    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+  },
+  "hooks": {
+    "PretoolsUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rtk hook claude"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/*secret*)",
+      "Read(**/*credential*)",
+      "Read(**/*token*)",
+      "Read(**/*.graph*)"
+    ],
+    "allow": [
+      "Bash(tools/notebook/smoke-test.sh *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git branch *)",
+      "Bash(git stash list)",
+      "Bash(uv run --group dev pytest)",
+      "Bash(uv run --group dev pytest *)",
+      "Bash(uv run tools/notebook/build.py *)",
+      "Bash(uv run tools/notebook/deploy.py *)",
+      "Bash(uv run tools/pipeline/manage.py *)",
+      "Bash(uv run tools/lakehouse/list-tables.py *)",
+      "Bash(python tools/lakehouse/list-tables.py *)",
+      "Bash(python3 tools/lakehouse/list-tables.py *)",
+      "Bash(tools/pre-commit-check.sh)",
+      "Bash(bash tools/pre-commit-check.sh)",
+      "mcp__fabric__fabric_list",
+      "mcp__fabric__fabric_get",
+      "Bash(tools/setup/fab-sandbox.ps1 --version)",
+      "Bash(powershell -File tools/setup/fab-sandbox.ps1 --version)",
+      "Bash(powershell -File tools/setup/fab-sandbox.ps1 api workspaces --output_format json)",
+      "Bash(powershell -ExecutionPolicy Bypass -File tools/notebook/smoke-test.ps1 *)",
+      "Bash(powershell -ExecutionPolicy Bypass -File tools/pre-commit-check.ps1)",
+      "Bash(powershell -File tools/setup/fab-sandbox.ps1 api --help)",
+      "Bash(bash tools/setup/fab-sandbox --version)",
+      "Bash(bash tools/setup/fab-sandbox api workspaces --output_format json)",
+      "Bash(powershell.exe -File tools/setup/fab-sandbox.ps1 --version)",
+      "Bash(powershell.exe -File tools/setup/fab-sandbox.ps1 api workspaces --output_format json)",
+      "mcp__fabric-graph__graph_get_entry",
+      "mcp__fabric-graph__graph_get_node",
+      "mcp__fabric-graph__graph_search",
+      "Bash(python tools/workspace/switch.py *)"
+      
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "fabric",
+    "fabric-graph"
+  ]
+}

@@ -46,11 +46,11 @@ SPLIT_SKILLS: dict[str, dict[str, list[str]]] = {
 
 
 def _build_graph_into_temp(tmp_path: Path) -> None:
-    """Run packaging/builders/build-graph.py with --out / --bm25 pointed at tmp_path to keep tests hermetic."""
+    """Run server/builders/build-graph.py with --out / --bm25 pointed at tmp_path to keep tests hermetic."""
     out = tmp_path / "graph.json"
     bm25 = tmp_path / "bm25.pkl"
     subprocess.run(
-        [sys.executable, str(ROOT / "packaging" / "builders" / "build-graph.py"),
+        [sys.executable, str(ROOT / "server" / "builders" / "build-graph.py"),
          "--root", str(ROOT), "--out", str(out), "--bm25", str(bm25)],
         check=True, capture_output=True,
     )
@@ -58,7 +58,7 @@ def _build_graph_into_temp(tmp_path: Path) -> None:
 
 @pytest.fixture(scope="module")
 def store(tmp_path_factory):
-    sys.path.insert(0, str(ROOT / "tool"))
+    sys.path.insert(0, str(ROOT / "server"))
     from graph.store import GraphStore
     tmp = tmp_path_factory.mktemp("graph")
     _build_graph_into_temp(tmp)
@@ -69,7 +69,7 @@ def store(tmp_path_factory):
 def test_skill_parent_is_thin_index(skill: str, spec: dict, store):
     """The parent SKILL.md must shrink — fewer lines than the original (which was > 150)
     and must list its sections as curated outbound links."""
-    path = ROOT / "profiles" / "skills" / skill / "SKILL.md"
+    path = ROOT / "server" / "skills" / skill / "SKILL.md"
     text = path.read_text(encoding="utf-8")
     line_count = text.count("\n")
     assert line_count < 60, f"{skill}/SKILL.md is now {line_count} lines; expected < 60 after split"
@@ -86,7 +86,7 @@ def test_skill_parent_is_thin_index(skill: str, spec: dict, store):
 
 @pytest.mark.parametrize("skill,spec", list(SPLIT_SKILLS.items()))
 def test_section_files_exist_and_have_frontmatter(skill: str, spec: dict, store):
-    sections_dir = ROOT / "profiles" / "skills" / skill / "sections"
+    sections_dir = ROOT / "server" / "skills" / skill / "sections"
     for section in spec["expected_sections"]:
         path = sections_dir / f"{section}.md"
         assert path.exists(), f"missing section file: {path.relative_to(ROOT)}"
@@ -98,7 +98,7 @@ def test_section_files_exist_and_have_frontmatter(skill: str, spec: dict, store)
 @pytest.mark.parametrize("skill,spec", list(SPLIT_SKILLS.items()))
 def test_original_h2_content_preserved_across_split(skill: str, spec: dict):
     """Union of section bodies must contain every original H2 heading (verbatim)."""
-    sections_dir = ROOT / "profiles" / "skills" / skill / "sections"
+    sections_dir = ROOT / "server" / "skills" / skill / "sections"
     union = "\n".join(
         p.read_text(encoding="utf-8") for p in sections_dir.glob("*.md")
     )

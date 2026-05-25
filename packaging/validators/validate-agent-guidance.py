@@ -47,10 +47,10 @@ FORBIDDEN_GUIDANCE_PHRASES = [
 ]
 
 PROFILE_FILES = [
-    ROOT / "profiles" / "claude" / "CLAUDE.md",
-    ROOT / "profiles" / "codex" / "AGENTS.md",
+    ROOT / "cli" / "profiles" / "claude" / "CLAUDE.md",
+    ROOT / "cli" / "profiles" / "codex" / "AGENTS.md",
 ]
-GRAPH_CONTENT_DIR = ROOT / "content" / "graph-content"
+GRAPH_CONTENT_DIR = ROOT / "server" / "content"
 ENTRY_FILE = GRAPH_CONTENT_DIR / "entry.md"
 SESSION_START_FILE = GRAPH_CONTENT_DIR / "session" / "session-start.md"
 OPERATING_RULES_FILE = GRAPH_CONTENT_DIR / "session" / "operating-rules.md"
@@ -106,28 +106,25 @@ def validate_root_guidance(errors: list[str]) -> None:
 
 
 def validate_profiles(errors: list[str]) -> None:
-    require(ROOT / "profiles" / "codex" / "AGENTS.md", errors)
-    require(ROOT / "profiles" / "codex" / "config.toml", errors)
-    require(ROOT / "profiles" / "claude" / "CLAUDE.md", errors)
-    require(ROOT / "profiles" / "claude" / "settings.local.json", errors)
-    if (ROOT / "profiles" / "claude" / "settings.json").exists():
+    require(ROOT / "cli" / "profiles" / "codex" / "AGENTS.md", errors)
+    require(ROOT / "cli" / "profiles" / "codex" / "config.toml", errors)
+    require(ROOT / "cli" / "profiles" / "claude" / "CLAUDE.md", errors)
+    require(ROOT / "cli" / "profiles" / "claude" / "settings.local.json", errors)
+    if (ROOT / "cli" / "profiles" / "claude" / "settings.json").exists():
         errors.append("profiles/claude/settings.json must not exist; Claude local installs use settings.local.json")
-    require(ROOT / "content" / "rules" / "data-engineering.md", errors)
-    require(ROOT / "content" / "rules" / "fabric-platform.md", errors)
-    require(ROOT / "content" / "rules" / "security.md", errors)
+    require(ROOT / "server" / "content" / "rules" / "data-engineering.md", errors)
+    require(ROOT / "server" / "content" / "rules" / "fabric-platform.md", errors)
+    require(ROOT / "server" / "content" / "rules" / "security.md", errors)
 
-    shared_skills = skill_names(ROOT / "profiles" / "skills")
-    codex_skills_dir = ROOT / "profiles" / "codex" / "skills"
-    claude_skills_dir = ROOT / "profiles" / "claude" / "skills"
-    if codex_skills_dir.exists():
-        errors.append("profiles/codex/skills must not exist; Codex installs skills from profiles/skills")
-    if claude_skills_dir.exists():
-        errors.append("profiles/claude/skills must not exist; Claude installs skills from profiles/skills")
-    if shared_skills != REQUIRED_SKILLS:
-        errors.append(f"Shared skill set mismatch: {sorted(shared_skills)}")
+    # Skills live on the server (server/skills/) and are served via graph_get_node.
+    server_skills = skill_names(ROOT / "server" / "skills")
+    if (ROOT / "cli" / "profiles" / "skills").exists():
+        errors.append("cli/profiles/skills must not exist; skills moved to server/skills/")
+    if server_skills != REQUIRED_SKILLS:
+        errors.append(f"Server skill set mismatch: {sorted(server_skills)}")
 
-    codex_agents = agent_names(ROOT / "profiles" / "codex" / "agents", ".toml")
-    claude_agents = agent_names(ROOT / "profiles" / "claude" / "agents", ".md")
+    codex_agents = agent_names(ROOT / "cli" / "profiles" / "codex" / "agents", ".toml")
+    claude_agents = agent_names(ROOT / "cli" / "profiles" / "claude" / "agents", ".md")
     if codex_agents != REQUIRED_AGENTS:
         errors.append(f"Codex agent set mismatch: {sorted(codex_agents)}")
     if claude_agents != REQUIRED_AGENTS:
@@ -135,7 +132,7 @@ def validate_profiles(errors: list[str]) -> None:
     if codex_agents != claude_agents:
         errors.append("Codex and Claude profile agents differ")
 
-    settings = ROOT / "profiles" / "claude" / "settings.local.json"
+    settings = ROOT / "cli" / "profiles" / "claude" / "settings.local.json"
     if settings.exists():
         text = settings.read_text(errors="ignore")
         forbidden_permissions = [
@@ -188,11 +185,16 @@ def validate_entry_node(errors: list[str]) -> None:
         "tool\\setup\\setup.ps1",
         "tool/setup/setup.sh",
         "FABRIC_WORKSPACE_ID",
-        "fab-sandbox auth login",
+        "docker compose up",
+        "graph_get_entry",
+        "fab --version",
+        "fab api workspaces",
+        "python tool/workspace/init.py",
+        "python tool/workspace/switch.py",
+        "python tool/notebook/deploy.py",
         "Do **not** read `.env` contents",
         "Setup incomplete",
         "Mandatory setup gate",
-        "verify `.env`, `fab`, and `fab auth`",
         "before accepting any Fabric work",
         "network",
         "lakehouse",
@@ -233,7 +235,7 @@ def validate_session_nodes(errors: list[str]) -> None:
 
 def validate_platform_rules_use_wrapper(errors: list[str]) -> None:
     for path in [
-        ROOT / "content" / "rules" / "fabric-platform.md",
+        ROOT / "server" / "content" / "rules" / "fabric-platform.md",
     ]:
         if not path.exists():
             continue
@@ -241,34 +243,34 @@ def validate_platform_rules_use_wrapper(errors: list[str]) -> None:
         for phrase in ("fab auth login", "fab auth token", "fab api "):
             if phrase in text:
                 errors.append(
-                    f"{rel(path)} must use tool/setup/fab-sandbox instead of raw {phrase!r}"
+                    f"{rel(path)} must reference the MCP fabric_* tools instead of raw {phrase!r}"
                 )
 
 
 def validate_skill_wiring(errors: list[str]) -> None:
     required = [
         (
-            ROOT / "profiles" / "claude" / "agents" / "developer.md",
+            ROOT / "cli" / "profiles" / "claude" / "agents" / "developer.md",
             ["fabric-transform", "fabric-model"],
         ),
         (
-            ROOT / "profiles" / "codex" / "agents" / "developer.toml",
+            ROOT / "cli" / "profiles" / "codex" / "agents" / "developer.toml",
             ["fabric-transform", "fabric-model"],
         ),
         (
-            ROOT / "profiles" / "claude" / "agents" / "tester.md",
+            ROOT / "cli" / "profiles" / "claude" / "agents" / "tester.md",
             ["fabric-validate", "tester"],
         ),
         (
-            ROOT / "profiles" / "codex" / "agents" / "tester.toml",
+            ROOT / "cli" / "profiles" / "codex" / "agents" / "tester.toml",
             ["fabric-validate", "tester"],
         ),
         (
-            ROOT / "content" / "rules" / "data-engineering.md",
+            ROOT / "server" / "content" / "rules" / "data-engineering.md",
             ["fabric-transform", "fabric-validate"],
         ),
         (
-            ROOT / "content" / "rules" / "fabric-platform.md",
+            ROOT / "server" / "content" / "rules" / "fabric-platform.md",
             ["fabric-model"],
         ),
     ]

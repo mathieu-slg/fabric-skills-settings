@@ -18,6 +18,13 @@ dev = ["pytest>=8", "Faker>=26", "mimesis>=18", "scikit-learn>=1.5", "pandas>=2"
 
 [project.optional-dependencies]
 graph = ["networkx>=3.2", "rank_bm25>=0.2.2"]
+server = [
+    "mcp>=1.0",
+    "uvicorn>=0.30",
+    "pydantic>=2.7",
+    "networkx>=3.2",
+    "rank_bm25>=0.2.2",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -29,25 +36,21 @@ source = "vcs"
 local_scheme = "no-local-version"
 
 [tool.hatch.build.targets.wheel]
-packages = ["packaging/fabric_agent_installer"]
+packages = ["cli/fabric_agent_installer"]
 
 [tool.hatch.build.targets.wheel.sources]
-"packaging/fabric_agent_installer" = "fabric_agent_installer"
+"cli/fabric_agent_installer" = "fabric_agent_installer"
 
 [tool.hatch.build.targets.wheel.force-include]
-"profiles" = "fabric_agent_installer/_profiles"
-"content" = "fabric_agent_installer/_content"
-"tool" = "fabric_agent_installer/_tool"
-"mcp" = "fabric_agent_installer/_mcp"
-"dist/.graph" = "fabric_agent_installer/_graph"
+"cli/profiles" = "fabric_agent_installer/_profiles"
+"cli/setup" = "fabric_agent_installer/_setup"
+"cli/tools" = "fabric_agent_installer/_tools"
 
 [tool.hatch.build.targets.sdist]
 include = [
+    "cli/",
+    "server/",
     "packaging/",
-    "profiles/",
-    "tool/",
-    "mcp/",
-    "content/",
     "tests/",
     "README.md",
     "LICENSE",
@@ -56,8 +59,3 @@ include = [
     "setup.sh",
 ]
 
-# Pre-built knowledge graph artifacts must ship to target repos. They live under
-# dist/.graph (source-side build output) which is gitignored, so force-include is
-# the only way to pull them into the sdist (which the wheel build then re-uses).
-[tool.hatch.build.targets.sdist.force-include]
-"dist/.graph" = "dist/.graph"

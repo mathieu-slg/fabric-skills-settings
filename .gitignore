@@ -46,7 +46,7 @@ venv/
 # Memory — runtime memory is persisted via the graph MCP CRUD ops
 memory/*.md
 
-# Knowledge graph build artifacts (rebuilt by packaging/builders/build-graph.py)
+# Knowledge graph build artifacts (rebuilt by server/builders/build-graph.py)
 dist/.graph/
 
 # OS / IDE
