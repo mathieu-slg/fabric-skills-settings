@@ -1,0 +1,23 @@
+# Repo-root build context — keep the image lean.
+# Build context is the repo root (see docker-compose.yml context: ..)
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.git/
+.gitignore
+.github/
+dist/
+docs/
+img/
+tests/
+baseline-snapshot/
+cli/
+node_modules/
+.idea/
+.vscode/
+*.local.json
+.env
+.env.local
+**/.env

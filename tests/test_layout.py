@@ -1,89 +1,117 @@
-"""Layout assertions driving the folder redesign.
-
-Each xfail-marked test guards a post-move invariant. Migration steps un-xfail
-them one block at a time; CI is green when every block is un-xfail and passing.
-See: C:\\Users\\User\\.claude\\plans\\plan-a-folder-redesing-giggly-marble.md
-"""
+"""Layout assertions for the 2-package structure (cli / server)."""
 from pathlib import Path
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-# ── Step 1: bin/ + build/ → packaging/ ────────────────────────────────────────
-def test_packaging_dir_exists():
-    assert (ROOT / "packaging").is_dir()
+# ── validators are now pytest modules, not a standalone packaging/ tree ───────
+def test_validators_are_pytest_modules():
+    """The former packaging/validators/ scripts moved into tests/ as pytest
+    modules backed by importable logic under tests/_validation/."""
+    assert (ROOT / "tests" / "_validation" / "install_package.py").is_file()
+    assert (ROOT / "tests" / "_validation" / "agent_guidance.py").is_file()
+    assert (ROOT / "tests" / "test_install_package.py").is_file()
+    assert (ROOT / "tests" / "test_agent_guidance.py").is_file()
+    # The standalone packaging/ tree is gone.
+    assert not (ROOT / "packaging").exists()
 
 
-def test_packaging_has_install_cli():
-    assert (ROOT / "packaging" / "install-fabric-agent").is_file()
+def test_cli_has_no_rules_dir():
+    """Rules moved to server/content/rules/ — cli/rules/ must be gone."""
+    assert not (ROOT / "cli" / "rules").exists()
 
 
-def test_packaging_builders_present():
-    builders = ROOT / "packaging" / "builders"
-    assert (builders / "build-graph.py").is_file()
-    assert (builders / "build-agent-capability-graph.py").is_file()
-    assert (builders / "graph_build" / "visualize.py").is_file()
-
-
-def test_packaging_validators_present():
-    validators = ROOT / "packaging" / "validators"
-    assert (validators / "validate-install-package.py").is_file()
-    assert (validators / "validate-agent-guidance.py").is_file()
-
-
-def test_bin_and_build_removed():
-    assert not (ROOT / "bin").exists()
-    assert not (ROOT / "build").exists()
-
-
-# ── Step 2: fabric_agent_installer/ → packaging/fabric_agent_installer/ ───────
-def test_installer_package_under_packaging():
-    pkg = ROOT / "packaging" / "fabric_agent_installer"
+# ── cli/ : CLI + everything it ships into target repos ────────────────────────
+def test_cli_layout():
+    """cli/ contains the installer wheel package (src/ layout) + the user-facing
+    install scripts + profile/tool/setup content that the CLI installs into
+    target repos."""
+    cli = ROOT / "cli"
+    # New src/ layout — fabric_skills_settings package with Typer CLI.
+    pkg = cli / "src" / "fabric_skills_settings"
     assert (pkg / "__init__.py").is_file()
-    assert (pkg / "_installer.py").is_file()
-    assert not (ROOT / "fabric_agent_installer").exists()
+    assert (pkg / "cli.py").is_file()
+    assert (pkg / "commands" / "install.py").is_file()
+    assert (pkg / "commands" / "check.py").is_file()
+    assert (pkg / "commands" / "refresh.py").is_file()
+    assert (pkg / "core" / "files.py").is_file()
+    assert (pkg / "core" / "gitignore.py").is_file()
+    assert (pkg / "core" / "profiles.py").is_file()
+    assert (pkg / "core" / "bootstrap.py").is_file()
+    # Canonical CLI install is `uv tool install fabric-skills-settings` —
+    # no top-level cli/setup.{sh,ps1} wrapper. `cli/setup/setup.{sh,ps1}`
+    # is the target-repo bootstrap, shipped to <target>/tool/setup/.
+    assert not (cli / "setup.sh").exists()
+    assert not (cli / "setup.ps1").exists()
+    # Legacy launcher and old package layout are gone.
+    assert not (cli / "fabric_agent_installer").exists()
+    assert not (cli / "install-fabric-agent").exists()
+    assert (cli / "profiles" / "claude" / "CLAUDE.md").is_file()
+    assert (cli / "profiles" / "codex" / "AGENTS.md").is_file()
+    assert not (cli / "profiles" / "skills").exists()
+    # .mcp.json is written by the target bootstrap, not shipped as a scaffold template.
+    assert not (cli / "profiles" / "shared" / "scaffold" / ".mcp.json").exists()
+    assert (cli / "setup" / "setup.sh").is_file()
+    assert (cli / "setup" / "setup.ps1").is_file()
+    # fab-sandbox / fabric-inventory-readonly removed — fab is server-side now
+    assert not (cli / "setup" / "fab-sandbox").exists()
+    assert not (cli / "setup" / "fabric-inventory-readonly").exists()
+    # ms-fabric-cli-dependent helpers live in cli/tools/ (target-side, invoked via Bash).
+    assert (cli / "tools" / "notebook" / "build.py").is_file()
+    assert (cli / "tools" / "notebook" / "deploy.py").is_file()
+    assert (cli / "tools" / "pipeline" / "manage.py").is_file()
+    assert (cli / "tools" / "lakehouse" / "list-tables.py").is_file()
+    assert (cli / "tools" / "workspace" / "init.py").is_file()
+    assert (cli / "tools" / "workspace" / "switch.py").is_file()
+    assert (cli / "tools" / "workspace" / "transfer.py").is_file()
+    # Deterministic lints + pre-commit aggregator also live target-side now.
+    assert (cli / "tools" / "lint" / "__init__.py").is_file()
+    assert (cli / "tools" / "lint" / "core.py").is_file()
+    assert (cli / "tools" / "precommit" / "pre-commit-check.sh").is_file()
+    assert (cli / "tools" / "precommit" / "pre-commit-check.ps1").is_file()
 
 
-# ── Step 3: rules/ + graph-content/ → content/ ───────────────────────────────
-def test_content_dir_exists():
-    assert (ROOT / "content" / "rules").is_dir()
-    assert (ROOT / "content" / "graph-content").is_dir()
-    assert (ROOT / "content" / "rules" / "security.md").is_file()
-    assert (ROOT / "content" / "graph-content" / "entry.md").is_file()
+# ── server/ : MCP servers + graph runtime + graph content + graph builders ───
+def test_server_layout():
+    """server/ is self-contained: FastMCP app + graph runtime + graph content + builders + Dockerfile."""
+    server = ROOT / "server"
+    assert (server / "app.py").is_file()
+    # *_tools.py wrappers moved to server/tools/<name>/tools.py
+    assert not (server / "fabric_tools.py").exists()
+    assert not (server / "graph_tools.py").exists()
+    assert (server / "Dockerfile").is_file()
+    assert (server / "docker-compose.yml").is_file()
+    assert (server / "graph" / "store.py").is_file()
+    assert (server / "graph" / "search.py").is_file()
+    assert (server / "graph" / "writes.py").is_file()
+    assert (server / "content" / "entry.md").is_file()
+    assert (server / "content" / "rules" / "security.md").is_file()
+    assert (server / "tools" / "semantic_model" / "inspect.py").is_file()
+    assert (server / "tools" / "graph" / "tools.py").is_file()
+    assert (server / "tools" / "validate" / "pipeline-lineage.py").is_file()
+    assert (server / "tools" / "data" / "mock-data-generator.py").is_file()
+    assert (server / "builders" / "build-graph.py").is_file()
+    assert (server / "skills" / "rtk" / "SKILL.md").is_file()
+    assert (server / "skills" / "fabric-transform" / "SKILL.md").is_file()
+    # Fab-dependent tools moved to cli/tools/ — server no longer has them.
+    assert not (server / "fab.py").exists()
+    assert not (server / "tools" / "fabric").exists()
+    assert not (server / "tools" / "notebook").exists()
+    assert not (server / "tools" / "pipeline").exists()
+    assert not (server / "tools" / "lakehouse").exists()
+    assert not (server / "tools" / "workspace").exists()
+    # Lint + pre-commit moved to cli/tools/ — server no longer registers them.
+    assert not (server / "tools" / "lint").exists()
+    assert not (server / "tools" / "precommit").exists()
 
 
-def test_legacy_content_roots_removed():
-    assert not (ROOT / "rules").exists()
-    assert not (ROOT / "profiles" / "shared" / "graph-content").exists()
+# ── Legacy roots that should be gone ──────────────────────────────────────────
+def test_legacy_top_levels_removed():
+    """After the split, these top-level folders disappear (children migrated):
+    bin/, build/, content/, mcp/, rules/, tool/, fabric_agent_installer/,
+    fabric_skills_settings/."""
+    for legacy in ("bin", "build", "content", "mcp", "rules", "tool",
+                   "fabric_agent_installer", "fabric_skills_settings"):
+        assert not (ROOT / legacy).exists(), f"legacy top-level {legacy!r} still present"
 
 
-# ── Step 4: project-layout/tool/ deleted; project-layout/ → scaffold/ ────────
-def test_project_layout_replaced_by_scaffold():
-    assert not (ROOT / "profiles" / "shared" / "project-layout").exists()
-    assert (ROOT / "profiles" / "shared" / "scaffold").is_dir()
-    # The tool/ mirror is gone; root tool/ is the single source.
-    scaffold_tool = ROOT / "profiles" / "shared" / "scaffold" / "tool"
-    if scaffold_tool.exists():
-        # If anything under scaffold/tool/ remains, it must be scaffold-only (e.g. a target-side setup wrapper),
-        # never a mirror of root tool/ runtime code.
-        for child in scaffold_tool.iterdir():
-            assert child.name == "setup", (
-                f"unexpected scaffold tool subdir: {child.name} (only target-side setup wrappers allowed)"
-            )
-
-
-# ── Step 5: tool/mcp/ → mcp/ at root ──────────────────────────────────────────
-def test_mcp_dir_at_root():
-    assert (ROOT / "mcp" / "server.py").is_file()
-    assert (ROOT / "mcp" / "graph-server.py").is_file()
-    assert not (ROOT / "tool" / "mcp").exists()
-
-
-# ── Step 6: memory/.graph/ → dist/.graph/ (source repo only) ──────────────────
-def test_dist_graph_replaces_memory_graph():
-    assert (ROOT / "dist" / ".graph" / "graph.json").is_file()
-    assert (ROOT / "dist" / ".graph" / "graph-bm25.pkl").is_file()
-    # Source repo no longer carries memory/ at all.
-    assert not (ROOT / "memory").exists()

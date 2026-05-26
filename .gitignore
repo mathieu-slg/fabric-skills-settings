@@ -4,6 +4,7 @@
 !.env.example
 *.local.json
 !profiles/claude/settings.local.json
+!cli/profiles/claude/settings.local.json
 
 # Local Claude Code overrides
 .claude/settings.local.json
@@ -12,6 +13,7 @@
 data/
 logs/
 src/
+!cli/src/
 fabric_notebooks/
 _delta_log/
 *.checkpoint.parquet
@@ -46,7 +48,7 @@ venv/
 # Memory — runtime memory is persisted via the graph MCP CRUD ops
 memory/*.md
 
-# Knowledge graph build artifacts (rebuilt by packaging/builders/build-graph.py)
+# Knowledge graph build artifacts (rebuilt by server/builders/build-graph.py)
 dist/.graph/
 
 # OS / IDE

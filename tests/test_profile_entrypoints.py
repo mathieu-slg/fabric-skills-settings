@@ -8,11 +8,11 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CODEX_ENTRYPOINT = ROOT / "profiles" / "codex" / "AGENTS.md"
-CLAUDE_ENTRYPOINT = ROOT / "profiles" / "claude" / "CLAUDE.md"
+CODEX_ENTRYPOINT = ROOT / "cli" / "profiles" / "codex" / "AGENTS.md"
+CLAUDE_ENTRYPOINT = ROOT / "cli" / "profiles" / "claude" / "CLAUDE.md"
 ROOT_AGENTS = ROOT / "AGENTS.md"
 ROOT_CLAUDE = ROOT / "CLAUDE.md"
-SKILLS_DIR = ROOT / "profiles" / "skills"
+SKILLS_DIR = ROOT / "server" / "skills"
 
 
 def _normalize_profile_text(text: str) -> str:
@@ -63,7 +63,7 @@ def test_codex_and_claude_profile_entrypoints_are_at_least_80_percent_similar():
 def test_all_installed_skills_are_mentioned_in_skills_index_node():
     """Phase P4: skills list moved out of the hard-minimal profile into the
     graph-content/indexes/skills-index node. Profiles no longer mention skills."""
-    skills_index = ROOT / "content" / "graph-content" / "indexes" / "skills-index.md"
+    skills_index = ROOT / "server" / "content" / "indexes" / "skills-index.md"
     skill_names = _installed_skill_names()
     assert skill_names, "expected installed skills under profiles/skills"
     text = skills_index.read_text(encoding="utf-8")

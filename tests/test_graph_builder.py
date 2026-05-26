@@ -14,23 +14,23 @@ def _write(path: Path, text: str) -> None:
 
 def _make_tree(root: Path) -> None:
     _write(
-        root / "content" / "graph-content" / "entry.md",
-        "---\nname: entry\ndescription: Setup gate\nlinks:\n  - graph-content/session/session-start\n---\n\n# Entry\nSee content/rules/security.md and skills/fabric-transform.\n",
+        root / "server" / "content" / "entry.md",
+        "---\nname: entry\ndescription: Setup gate\nlinks:\n  - graph-content/session/session-start\n---\n\n# Entry\nSee server/content/rules/security.md and skills/fabric-transform.\n",
     )
     _write(
-        root / "content" / "graph-content" / "session" / "session-start.md",
-        "---\nname: session-start\ndescription: Read order\n---\n\n# Session start\nWorkflows in profiles/skills/fabric-transform/SKILL.md.\n",
+        root / "server" / "content" / "session" / "session-start.md",
+        "---\nname: session-start\ndescription: Read order\n---\n\n# Session start\nWorkflows in server/skills/fabric-transform/SKILL.md.\n",
     )
     _write(
-        root / "profiles" / "skills" / "fabric-transform" / "SKILL.md",
+        root / "server" / "skills" / "fabric-transform" / "SKILL.md",
         "---\nname: fabric-transform\ndescription: Silver/Gold transform skill\nlinks:\n  - rules/data-engineering\n---\n\n# fabric-transform\nMERGE pattern with idempotent upsert.\n",
     )
     _write(
-        root / "content" / "rules" / "data-engineering.md",
+        root / "server" / "content" / "rules" / "data-engineering.md",
         "---\nname: data-engineering\ndescription: Pipeline rules\n---\n\n# Data engineering rules\nIdempotency required.\n",
     )
     _write(
-        root / "content" / "rules" / "security.md",
+        root / "server" / "content" / "rules" / "security.md",
         "---\nname: security\ndescription: Secrets handling rules\n---\n\n# Security\nNever commit credentials.\n",
     )
 
@@ -70,13 +70,13 @@ def test_build_does_not_index_native_agent_files(tmp_path):
     _make_tree(tmp_path)
     _write(
         tmp_path / ".claude" / "agents" / "developer.md",
-        "---\nname: developer\n---\n\n# Developer\nUse profiles/skills/fabric-transform/SKILL.md.\n",
+        "---\nname: developer\n---\n\n# Developer\nUse server/skills/fabric-transform/SKILL.md.\n",
     )
     _write(
         tmp_path / ".codex" / "agents" / "developer.toml",
         'name = "developer"\n'
         'description = "Implements Microsoft Fabric work."\n'
-        'developer_instructions = """Use profiles/skills/fabric-transform/SKILL.md."""\n',
+        'developer_instructions = """Use server/skills/fabric-transform/SKILL.md."""\n',
     )
     result = build(tmp_path)
     assert result.errors == []
@@ -100,13 +100,13 @@ def test_build_warns_and_keeps_first_on_duplicate_id(tmp_path):
     assert any("duplicate node id" in w for w in result.warnings)
     assert result.errors == []
     node = result.store.get_node("graph-content/entry")
-    assert node.path.startswith("content/graph-content/")
+    assert node.path.startswith("server/content/")
 
 
 def test_build_errors_on_unresolved_curated_link(tmp_path):
     _make_tree(tmp_path)
     _write(
-        tmp_path / "content" / "rules" / "broken.md",
+        tmp_path / "server" / "content" / "rules" / "broken.md",
         "---\nname: broken\nlinks:\n  - rules/does-not-exist\n---\n\n# Broken\n",
     )
     result = build(tmp_path)
@@ -118,11 +118,11 @@ def test_id_from_path_handles_known_locations():
         "memory/graph-content/entry.md": "graph-content/entry",
         "memory/graph-content/workflow/pipeline-structure.md": "graph-content/workflow/pipeline-structure",
         "memory/rules/data-engineering.md": "rules/data-engineering",
-        "content/rules/data-engineering.md": "rules/data-engineering",
-        "content/graph-content/entry.md": "graph-content/entry",
+        "server/content/rules/data-engineering.md": "rules/data-engineering",
+        "server/content/entry.md": "graph-content/entry",
         "memory/skill-fixes/silver-do-not-trust-bronze-types.md": "skill-fixes/silver-do-not-trust-bronze-types",
         ".claude/skills/fabric-transform/SKILL.md": "skills/fabric-transform",
-        "profiles/skills/fabric-transform/SKILL.md": "skills/fabric-transform",
+        "server/skills/fabric-transform/SKILL.md": "skills/fabric-transform",
     }
     for path, expected in cases.items():
         assert id_from_path(path) == expected, f"{path} -> {id_from_path(path)} != {expected}"
