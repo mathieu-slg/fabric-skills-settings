@@ -7,8 +7,8 @@ The `fabric-server` FastMCP server uses **API-key + JWT** authentication. Auth i
 ```
 Client (user's laptop)                   Server (Docker 127.0.0.1:8000)
 ─────────────────────                    ───────────────────────────────
-FABRIC_MCP_API_KEY                       config/api-keys.txt
-  (from shell profile)                     (admin-managed list)
+FABRIC_MCP_API_KEY                       config/api-keys.csv
+  (from shell profile)                     (admin-managed email,apikey CSV)
         │                                        │
         ▼                                        ▼
 POST /auth/login ──{"api_key": "..."} ──► validate key
@@ -83,7 +83,7 @@ sequenceDiagram
 
 ## Server side — `FabricAuthMiddleware`
 
-Implemented in `server/app.py` as a pure ASGI middleware wrapping the FastMCP app.
+Implemented in `server/auth/middleware.py` as a pure ASGI middleware wrapping the FastMCP app (JWT handling lives in `server/auth/tokens.py`). `server/app.py` wires it on via `install_auth_middleware(app)` and otherwise stays free of auth logic.
 
 ```mermaid
 sequenceDiagram
@@ -116,7 +116,7 @@ Each JWT contains a unique `jti` (UUID4). The `JtiStore` tracks all issued JTIs 
 
 ### Auth opt-out
 
-Auth is **disabled entirely** when `FABRIC_MCP_API_KEYS_FILE` is unset and `FABRIC_MCP_API_KEYS` is empty — the `FabricAuthMiddleware` is not added to the app, and `/auth/login` returns 404.
+Auth is **disabled entirely** when no key source is configured (the default `file` source with no `FABRIC_MCP_API_KEYS_FILE`) and `FABRIC_MCP_API_KEYS` is empty — the `FabricAuthMiddleware` is not added to the app, and `/auth/login` returns 404.
 
 ## Server configuration
 
@@ -127,10 +127,10 @@ services:
   server:
     environment:
       MCP_SERVER_URL: ${MCP_SERVER_URL:-http://127.0.0.1:8000}
-      FABRIC_MCP_API_KEYS_FILE: /config/api-keys.txt
+      FABRIC_MCP_API_KEYS_FILE: /config/api-keys.csv
       FABRIC_MCP_JWT_SECRET: ${FABRIC_MCP_JWT_SECRET}
     volumes:
-      - ./config/api-keys.txt:/config/api-keys.txt:ro  # admin-managed
+      - ./config/api-keys.csv:/config/api-keys.csv:ro  # admin-managed
       - ./data:/data
     ports:
       - "127.0.0.1:8000:8000"
@@ -140,21 +140,42 @@ services:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `FABRIC_MCP_API_KEYS_FILE` | _(unset)_ | Path to file with one API key per line. Auth enabled when set. |
-| `FABRIC_MCP_API_KEYS` | _(unset)_ | Comma-separated API keys (alternative to file). |
+| `FABRIC_MCP_API_KEYS_SOURCE` | `file` | Where the api-keys CSV is loaded from: `file` (local disk) or `azure-blob` (Azure Blob Storage). |
+| `FABRIC_MCP_API_KEYS_FILE` | _(unset)_ | **(file source)** Path to a CSV (`email,apikey` headers, one row per user). Only the `apikey` column is used for auth. Auth enabled when set. |
+| `FABRIC_MCP_API_KEYS_BLOB_CONTAINER` | _(unset)_ | **(azure-blob source)** Blob container holding the CSV. Required. |
+| `FABRIC_MCP_API_KEYS_BLOB_NAME` | _(unset)_ | **(azure-blob source)** Blob name of the CSV, e.g. `api-keys.csv`. Required. |
+| `FABRIC_MCP_API_KEYS_BLOB_CONNECTION_STRING` | _(unset)_ | **(azure-blob source)** Storage-account connection string. Use this **or** the account URL. |
+| `FABRIC_MCP_API_KEYS_BLOB_ACCOUNT_URL` | _(unset)_ | **(azure-blob source)** Account URL, e.g. `https://acct.blob.core.windows.net`. Authenticates with `DefaultAzureCredential` (managed identity, etc.). |
+| `FABRIC_MCP_API_KEYS` | _(unset)_ | Comma-separated API keys, always honored in addition to the source. |
 | `FABRIC_MCP_JWT_SECRET` | _(required when auth enabled)_ | HS256 signing secret. Generate: `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `MCP_SERVER_URL` | derived from `HOST`+`PORT` | Informational — returned in auth responses. |
 | `FABRIC_CORS_ORIGINS` | `*` | Comma-separated allowed CORS origins. Tighten for non-local deployments. |
 
+### Key source: repository pattern
+
+The key store is loaded through a small repository abstraction
+(`server/auth/repository.py`) so the *source* of the keys can be swapped at
+deploy time without touching the auth middleware. `FABRIC_MCP_API_KEYS_SOURCE`
+selects the backend; both return the same `email,apikey` CSV:
+
+- **`file`** (default) — `LocalFileApiKeyRepository` reads `FABRIC_MCP_API_KEYS_FILE` from disk.
+- **`azure-blob`** — `AzureBlobApiKeyRepository` downloads the blob, authenticating with a connection string or `DefaultAzureCredential` (account URL). Requires the `server-azure` extra (`azure-storage-blob`, `azure-identity`); the import is lazy, so file-mode deployments need nothing extra.
+
+The app/auth middleware never selects a source itself — it calls `load_api_keys()`, which composes the inline `FABRIC_MCP_API_KEYS` source with the CSV backend (`build_csv_api_key_repository`) and unions the results. All source selection stays inside `server/auth`.
+
 ### Admin API key management
 
-Create `server/config/api-keys.txt` on the host. One key per line. Lines starting with `#` are comments:
+The api-keys store is a CSV with the headers `email,apikey` and one row per user. Only the `apikey` column is used for authentication; `email` is for admin bookkeeping (mapping a key back to a user):
 
+```csv
+email,apikey
+alice@example.com,user-alice-abc123def456
+bob@example.com,user-bob-789xyz...
 ```
-# Fabric MCP API keys — one per line, one per user
-user-alice-abc123def456
-user-bob-789xyz...
-```
+
+**File source (default):** create `server/config/api-keys.csv` on the host (mounted read-only into the container).
+
+**Azure Blob source:** upload the same CSV to your container and set `FABRIC_MCP_API_KEYS_SOURCE=azure-blob` plus the `*_BLOB_*` variables above. Keys are re-read on server startup, so the container reloads them on restart regardless of source.
 
 Give each user their key. They set `FABRIC_MCP_API_KEY=<key>` in their shell profile (setup script handles this). Restart the container after adding or removing keys.
 
