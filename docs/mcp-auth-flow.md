@@ -1,6 +1,6 @@
 # MCP auth flow
 
-The `fabric-server` FastMCP server uses **API-key + JWT** authentication. Auth is opt-in: if neither `FABRIC_MCP_API_KEYS_FILE` nor `FABRIC_MCP_API_KEYS` is set, the server accepts unauthenticated requests (local single-user dev mode).
+The `fabric-server` FastMCP server uses **API-key + JWT** authentication. Auth is opt-in: if no API-key source is configured (the default `file` source with no `FABRIC_MCP_API_KEYS_FILE`, and an empty `FABRIC_MCP_API_KEYS`), the server accepts unauthenticated requests (local single-user dev mode). The whole auth layer lives under `server/auth/` (`repository.py` key sourcing, `tokens.py` JWT, `middleware.py` ASGI middleware); `server/app.py` only wires it on.
 
 ## Overview
 
@@ -127,14 +127,20 @@ services:
   server:
     environment:
       MCP_SERVER_URL: ${MCP_SERVER_URL:-http://127.0.0.1:8000}
+      FABRIC_MCP_API_KEYS_SOURCE: ${FABRIC_MCP_API_KEYS_SOURCE:-file}  # file | azure-blob
       FABRIC_MCP_API_KEYS_FILE: /config/api-keys.csv
       FABRIC_MCP_JWT_SECRET: ${FABRIC_MCP_JWT_SECRET}
     volumes:
-      - ./config/api-keys.csv:/config/api-keys.csv:ro  # admin-managed
+      - ./config/api-keys.csv:/config/api-keys.csv:ro  # admin-managed (file source)
       - ./data:/data
     ports:
       - "127.0.0.1:8000:8000"
 ```
+
+For the `azure-blob` source, drop the CSV volume mount and instead set
+`FABRIC_MCP_API_KEYS_BLOB_CONTAINER`, `FABRIC_MCP_API_KEYS_BLOB_NAME`, and either
+`FABRIC_MCP_API_KEYS_BLOB_CONNECTION_STRING` or `FABRIC_MCP_API_KEYS_BLOB_ACCOUNT_URL`
+(see the variable table below).
 
 ### Environment variables
 

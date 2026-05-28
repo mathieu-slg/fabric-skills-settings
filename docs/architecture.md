@@ -133,9 +133,13 @@ fabric-vibecoding-settings/
 │   └── tools/                        notebook/, pipeline/, lakehouse/, workspace/, lint/, precommit/
 │
 ├── server/
-│   ├── app.py                        FastMCP app — registers all tool groups
+│   ├── app.py                        FastMCP app — registers tool groups, wires auth + CORS
 │   ├── __main__.py                   uvicorn entrypoint (python -m server)
 │   ├── audit.py                      structured JSON audit log
+│   ├── auth/                         API-key sourcing + JWT + ASGI middleware
+│   │   ├── repository.py             pluggable key store (file / Azure Blob / env)
+│   │   ├── tokens.py                 JtiStore + JWT mint/decode
+│   │   └── middleware.py             FabricAuthMiddleware + install_auth_middleware
 │   ├── tools/{graph,validate,data,semantic_model}/
 │   ├── graph/{store,search,builder,writes,extract,schema,lock}.py
 │   ├── content/                      knowledge-graph source markdown
