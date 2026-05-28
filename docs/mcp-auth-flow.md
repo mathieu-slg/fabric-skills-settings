@@ -161,6 +161,8 @@ selects the backend; both return the same `email,apikey` CSV:
 - **`file`** (default) — `LocalFileApiKeyRepository` reads `FABRIC_MCP_API_KEYS_FILE` from disk.
 - **`azure-blob`** — `AzureBlobApiKeyRepository` downloads the blob, authenticating with a connection string or `DefaultAzureCredential` (account URL). Requires the `server-azure` extra (`azure-storage-blob`, `azure-identity`); the import is lazy, so file-mode deployments need nothing extra.
 
+The app/auth middleware never selects a source itself — it calls `load_api_keys()`, which composes the inline `FABRIC_MCP_API_KEYS` source with the CSV backend (`build_csv_api_key_repository`) and unions the results. All source selection stays inside `server/auth`.
+
 ### Admin API key management
 
 The api-keys store is a CSV with the headers `email,apikey` and one row per user. Only the `apikey` column is used for authentication; `email` is for admin bookkeeping (mapping a key back to a user):

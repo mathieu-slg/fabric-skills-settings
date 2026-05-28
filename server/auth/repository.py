@@ -10,7 +10,12 @@ at deploy time via the ``FABRIC_MCP_API_KEYS_SOURCE`` environment variable:
                      variable is unset (backwards compatible).
   - ``azure-blob`` — download from Azure Blob Storage.
 
-Every backend returns the raw CSV text; :func:`parse_api_keys_csv` turns it
+In addition, ``FABRIC_MCP_API_KEYS`` (comma-separated) is always honored as an
+inline source. :func:`load_api_keys` composes every configured source and is
+the single entry point callers use — the auth middleware never has to know
+*where* keys come from.
+
+Every CSV backend returns the raw CSV text; :func:`parse_api_keys_csv` turns it
 into the set of keys, so the CSV format is defined in exactly one place.
 
 Azure mode needs the optional ``azure-storage-blob`` (and, for managed-identity
@@ -55,21 +60,42 @@ def parse_api_keys_csv(text: str) -> set[str]:
 
 
 class ApiKeyRepository(ABC):
-    """A source of the ``email,apikey`` CSV that backs MCP authentication."""
+    """A source of valid MCP API keys."""
+
+    @abstractmethod
+    def load_keys(self) -> set[str]:
+        """Return the set of valid API keys this source provides."""
+
+
+class CsvApiKeyRepository(ApiKeyRepository):
+    """Base for repositories backed by an ``email,apikey`` CSV.
+
+    Subclasses only implement :meth:`fetch_csv`; CSV parsing lives here so the
+    format stays in one place.
+    """
 
     @abstractmethod
     def fetch_csv(self) -> str | None:
         """Return the raw CSV text, or ``None`` if the source is absent/empty."""
 
     def load_keys(self) -> set[str]:
-        """Fetch the CSV and parse it into the set of valid API keys."""
         text = self.fetch_csv()
         if not text:
             return set()
         return parse_api_keys_csv(text)
 
 
-class LocalFileApiKeyRepository(ApiKeyRepository):
+class EnvVarApiKeyRepository(ApiKeyRepository):
+    """Keys from a comma-separated environment value (``FABRIC_MCP_API_KEYS``)."""
+
+    def __init__(self, raw: str) -> None:
+        self._raw = raw
+
+    def load_keys(self) -> set[str]:
+        return {k.strip() for k in self._raw.split(",") if k.strip()}
+
+
+class LocalFileApiKeyRepository(CsvApiKeyRepository):
     """Load the api-keys CSV from a file on the local filesystem."""
 
     def __init__(self, path: str | os.PathLike[str]) -> None:
@@ -81,7 +107,7 @@ class LocalFileApiKeyRepository(ApiKeyRepository):
         return self._path.read_text(encoding="utf-8")
 
 
-class AzureBlobApiKeyRepository(ApiKeyRepository):
+class AzureBlobApiKeyRepository(CsvApiKeyRepository):
     """Load the api-keys CSV from a blob in Azure Blob Storage.
 
     Authentication is resolved in this order:
@@ -156,13 +182,25 @@ class AzureBlobApiKeyRepository(ApiKeyRepository):
         return service.get_blob_client(container=self._container, blob=self._blob)
 
 
-def build_api_key_repository() -> ApiKeyRepository | None:
-    """Construct the configured repository, or ``None`` if no file source is set.
+class CompositeApiKeyRepository(ApiKeyRepository):
+    """Union the keys from several repositories into one set."""
 
-    Reads ``FABRIC_MCP_API_KEYS_SOURCE`` to pick the backend (defaults to
-    ``file``). Returns ``None`` only for the file backend when no path is
-    configured — keeping auth opt-in for local single-user dev. Misconfigured
-    backends raise ``RuntimeError`` so the server fails fast at startup.
+    def __init__(self, repositories: list[ApiKeyRepository]) -> None:
+        self._repositories = repositories
+
+    def load_keys(self) -> set[str]:
+        keys: set[str] = set()
+        for repository in self._repositories:
+            keys |= repository.load_keys()
+        return keys
+
+
+def build_csv_api_key_repository() -> CsvApiKeyRepository | None:
+    """Construct the CSV-backed source selected by ``FABRIC_MCP_API_KEYS_SOURCE``.
+
+    Returns ``None`` only for the file backend when no path is configured —
+    keeping auth opt-in for local single-user dev. Misconfigured backends raise
+    ``RuntimeError`` so the server fails fast at startup.
     """
     source = os.environ.get("FABRIC_MCP_API_KEYS_SOURCE", "").strip().lower()
 
@@ -201,3 +239,29 @@ def build_api_key_repository() -> ApiKeyRepository | None:
         f"Unknown FABRIC_MCP_API_KEYS_SOURCE: {source!r} "
         "(expected 'file' or 'azure-blob')."
     )
+
+
+def build_api_key_repository() -> ApiKeyRepository:
+    """Build the composite repository for every configured key source.
+
+    Always includes the inline ``FABRIC_MCP_API_KEYS`` source (when set) plus
+    the CSV backend selected by ``FABRIC_MCP_API_KEYS_SOURCE``. This is the
+    single place that knows which sources exist; callers just ``load_keys()``.
+    """
+    repositories: list[ApiKeyRepository] = []
+    env_val = os.environ.get("FABRIC_MCP_API_KEYS", "").strip()
+    if env_val:
+        repositories.append(EnvVarApiKeyRepository(env_val))
+    csv_repository = build_csv_api_key_repository()
+    if csv_repository is not None:
+        repositories.append(csv_repository)
+    return CompositeApiKeyRepository(repositories)
+
+
+def load_api_keys() -> set[str]:
+    """Load every valid API key from all configured sources.
+
+    Single entry point for the auth layer — keeps key sourcing fully inside the
+    repository module so the app/middleware stays decoupled from it.
+    """
+    return build_api_key_repository().load_keys()

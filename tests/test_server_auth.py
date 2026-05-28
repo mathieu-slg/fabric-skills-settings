@@ -9,7 +9,6 @@ import pytest
 from server.app import (
     JtiStore,
     _decode_jwt,
-    _load_api_keys,
     _mint_jwt,
     _resource_server_url,
     FabricAuthMiddleware,
@@ -111,49 +110,7 @@ def test_decode_rejects_token_with_unissued_jti():
     assert _decode_jwt(forged_token, _SECRET, store) is None
 
 
-# ── _load_api_keys ────────────────────────────────────────────────────────────
-
-def test_load_api_keys_from_env(monkeypatch):
-    monkeypatch.setenv("FABRIC_MCP_API_KEYS", "key1, key2 , key3")
-    monkeypatch.delenv("FABRIC_MCP_API_KEYS_FILE", raising=False)
-    keys = _load_api_keys()
-    assert keys == {"key1", "key2", "key3"}
-
-
-def test_load_api_keys_from_csv_file(tmp_path, monkeypatch):
-    key_file = tmp_path / "api-keys.csv"
-    key_file.write_text(
-        "email,apikey\n"
-        "alice@example.com,keyA\n"
-        "bob@example.com,keyB\n"
-        "carol@example.com,keyC\n",
-        encoding="utf-8",
-    )
-    monkeypatch.delenv("FABRIC_MCP_API_KEYS", raising=False)
-    monkeypatch.setenv("FABRIC_MCP_API_KEYS_FILE", str(key_file))
-    keys = _load_api_keys()
-    assert keys == {"keyA", "keyB", "keyC"}
-
-
-def test_load_api_keys_from_csv_tolerates_header_whitespace_and_blanks(tmp_path, monkeypatch):
-    key_file = tmp_path / "api-keys.csv"
-    key_file.write_text(
-        "email, apikey\n"
-        "alice@example.com, keyA \n"
-        "no-key@example.com,\n"
-        "bob@example.com,keyB\n",
-        encoding="utf-8",
-    )
-    monkeypatch.delenv("FABRIC_MCP_API_KEYS", raising=False)
-    monkeypatch.setenv("FABRIC_MCP_API_KEYS_FILE", str(key_file))
-    keys = _load_api_keys()
-    assert keys == {"keyA", "keyB"}
-
-
-def test_load_api_keys_empty_when_not_configured(monkeypatch):
-    monkeypatch.delenv("FABRIC_MCP_API_KEYS", raising=False)
-    monkeypatch.delenv("FABRIC_MCP_API_KEYS_FILE", raising=False)
-    assert _load_api_keys() == set()
+# Key loading lives entirely in server.auth — see tests/test_api_key_repository.py.
 
 
 # ── FabricAuthMiddleware (ASGI tests via asyncio.run) ─────────────────────────

@@ -17,7 +17,7 @@ import jwt  # PyJWT
 from mcp.server.fastmcp import FastMCP
 from starlette.middleware.cors import CORSMiddleware
 
-from .auth import build_api_key_repository
+from .auth import load_api_keys
 from .tools.data import tools as data_tools
 from .tools.graph import tools as graph_tools
 from .tools.semantic_model import tools as semantic_model_tools
@@ -27,28 +27,6 @@ _JWT_ALGORITHM = "HS256"
 _JWT_EXPIRY_SECONDS = 3600  # 1 hour
 _LOGIN_PATH = "/auth/login"
 _REFRESH_PATH = "/auth/refresh"
-
-
-def _load_api_keys() -> set[str]:
-    """Load valid API keys from FABRIC_MCP_API_KEYS plus the configured repository.
-
-    ``FABRIC_MCP_API_KEYS`` (comma-separated) is always honored. Beyond that,
-    keys are loaded from the backend selected by ``FABRIC_MCP_API_KEYS_SOURCE``
-    (``file`` — the default — or ``azure-blob``); see ``server/auth``. Both
-    backends read a CSV with the headers ``email,apikey`` (one row per user;
-    only the ``apikey`` column authenticates).
-    """
-    keys: set[str] = set()
-    env_val = os.environ.get("FABRIC_MCP_API_KEYS", "").strip()
-    if env_val:
-        for k in env_val.split(","):
-            k = k.strip()
-            if k:
-                keys.add(k)
-    repository = build_api_key_repository()
-    if repository is not None:
-        keys |= repository.load_keys()
-    return keys
 
 
 def _jwt_secret() -> str:
@@ -245,7 +223,7 @@ def build_app():
 
     app = mcp.streamable_http_app()
 
-    api_keys = _load_api_keys()
+    api_keys = load_api_keys()
     if api_keys:
         secret = _jwt_secret()
         if not secret:

@@ -6,8 +6,12 @@ import pytest
 
 from server.auth.repository import (
     AzureBlobApiKeyRepository,
+    CompositeApiKeyRepository,
+    EnvVarApiKeyRepository,
     LocalFileApiKeyRepository,
     build_api_key_repository,
+    build_csv_api_key_repository,
+    load_api_keys,
     parse_api_keys_csv,
 )
 
@@ -18,6 +22,7 @@ _CSV = "email,apikey\nalice@example.com,keyA\nbob@example.com,keyB\n"
 def _clear_source_env(monkeypatch):
     """Each test starts from a clean key-source environment."""
     for var in (
+        "FABRIC_MCP_API_KEYS",
         "FABRIC_MCP_API_KEYS_SOURCE",
         "FABRIC_MCP_API_KEYS_FILE",
         "FABRIC_MCP_API_KEYS_BLOB_CONTAINER",
@@ -116,57 +121,113 @@ def test_azure_repository_requires_some_auth():
         AzureBlobApiKeyRepository(container="c", blob="b")
 
 
-# ── build_api_key_repository (factory) ──────────────────────────────────────
+# ── EnvVarApiKeyRepository ───────────────────────────────────────────────────
 
-def test_factory_defaults_to_file_source(tmp_path, monkeypatch):
+def test_env_var_repository_splits_and_strips():
+    repo = EnvVarApiKeyRepository("key1, key2 , key3")
+    assert repo.load_keys() == {"key1", "key2", "key3"}
+
+
+def test_env_var_repository_empty():
+    assert EnvVarApiKeyRepository("").load_keys() == set()
+
+
+# ── CompositeApiKeyRepository ────────────────────────────────────────────────
+
+def test_composite_unions_keys(tmp_path):
+    f = tmp_path / "api-keys.csv"
+    f.write_text(_CSV, encoding="utf-8")
+    composite = CompositeApiKeyRepository(
+        [EnvVarApiKeyRepository("env1,env2"), LocalFileApiKeyRepository(f)]
+    )
+    assert composite.load_keys() == {"env1", "env2", "keyA", "keyB"}
+
+
+def test_composite_empty_when_no_repositories():
+    assert CompositeApiKeyRepository([]).load_keys() == set()
+
+
+# ── build_csv_api_key_repository (source selector) ───────────────────────────
+
+def test_csv_factory_defaults_to_file_source(tmp_path, monkeypatch):
     f = tmp_path / "api-keys.csv"
     f.write_text(_CSV, encoding="utf-8")
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_FILE", str(f))
-    repo = build_api_key_repository()
+    repo = build_csv_api_key_repository()
     assert isinstance(repo, LocalFileApiKeyRepository)
     assert repo.load_keys() == {"keyA", "keyB"}
 
 
-def test_factory_file_source_without_path_returns_none(monkeypatch):
+def test_csv_factory_file_source_without_path_returns_none(monkeypatch):
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_SOURCE", "file")
-    assert build_api_key_repository() is None
+    assert build_csv_api_key_repository() is None
 
 
-def test_factory_builds_azure_repository_with_connection_string(monkeypatch):
+def test_csv_factory_builds_azure_repository_with_connection_string(monkeypatch):
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_SOURCE", "azure-blob")
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_BLOB_CONTAINER", "keys")
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_BLOB_NAME", "api-keys.csv")
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_BLOB_CONNECTION_STRING", "UseDevelopmentStorage=true")
-    repo = build_api_key_repository()
+    repo = build_csv_api_key_repository()
     assert isinstance(repo, AzureBlobApiKeyRepository)
 
 
-def test_factory_builds_azure_repository_with_account_url(monkeypatch):
+def test_csv_factory_builds_azure_repository_with_account_url(monkeypatch):
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_SOURCE", "azure-blob")
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_BLOB_CONTAINER", "keys")
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_BLOB_NAME", "api-keys.csv")
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_BLOB_ACCOUNT_URL", "https://acct.blob.core.windows.net")
-    repo = build_api_key_repository()
+    repo = build_csv_api_key_repository()
     assert isinstance(repo, AzureBlobApiKeyRepository)
 
 
-def test_factory_azure_missing_container_raises(monkeypatch):
+def test_csv_factory_azure_missing_container_raises(monkeypatch):
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_SOURCE", "azure-blob")
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_BLOB_NAME", "api-keys.csv")
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_BLOB_CONNECTION_STRING", "cs")
     with pytest.raises(RuntimeError, match="CONTAINER"):
-        build_api_key_repository()
+        build_csv_api_key_repository()
 
 
-def test_factory_azure_missing_auth_raises(monkeypatch):
+def test_csv_factory_azure_missing_auth_raises(monkeypatch):
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_SOURCE", "azure-blob")
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_BLOB_CONTAINER", "keys")
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_BLOB_NAME", "api-keys.csv")
     with pytest.raises(RuntimeError, match="CONNECTION_STRING"):
-        build_api_key_repository()
+        build_csv_api_key_repository()
 
 
-def test_factory_unknown_source_raises(monkeypatch):
+def test_csv_factory_unknown_source_raises(monkeypatch):
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_SOURCE", "ftp")
     with pytest.raises(RuntimeError, match="Unknown"):
-        build_api_key_repository()
+        build_csv_api_key_repository()
+
+
+# ── build_api_key_repository / load_api_keys (composed entry point) ──────────
+
+def test_load_api_keys_from_env_only(monkeypatch):
+    monkeypatch.setenv("FABRIC_MCP_API_KEYS", "key1, key2 , key3")
+    assert load_api_keys() == {"key1", "key2", "key3"}
+
+
+def test_load_api_keys_from_csv_file_only(tmp_path, monkeypatch):
+    f = tmp_path / "api-keys.csv"
+    f.write_text(_CSV, encoding="utf-8")
+    monkeypatch.setenv("FABRIC_MCP_API_KEYS_FILE", str(f))
+    assert load_api_keys() == {"keyA", "keyB"}
+
+
+def test_load_api_keys_combines_env_and_file(tmp_path, monkeypatch):
+    f = tmp_path / "api-keys.csv"
+    f.write_text(_CSV, encoding="utf-8")
+    monkeypatch.setenv("FABRIC_MCP_API_KEYS", "envkey")
+    monkeypatch.setenv("FABRIC_MCP_API_KEYS_FILE", str(f))
+    assert load_api_keys() == {"envkey", "keyA", "keyB"}
+
+
+def test_load_api_keys_empty_when_not_configured():
+    assert load_api_keys() == set()
+
+
+def test_build_api_key_repository_returns_composite():
+    assert isinstance(build_api_key_repository(), CompositeApiKeyRepository)
