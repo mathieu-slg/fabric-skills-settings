@@ -3,7 +3,7 @@
 All notable changes to **fabric-vibecoding-settings** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.2.0] — 2026-05-28
+## [0.2] — 2026-05-28
 
 Headline: a reworked **MCP server authentication** stack — a CSV-based API-key
 store, a pluggable key source (local disk **or** Azure Blob Storage), and a
@@ -64,7 +64,7 @@ self-contained `server/auth` module.
 4. Keys are read at server startup — restart the container after rotating keys,
    regardless of source.
 
-## [0.1.0]
+## [0.1]
 
 - Client/server split: Fabric-CLI-dependent helpers run on the user's laptop
   (`fabric-vibe`), graph/lint/validate tools run in the Dockerized FastMCP
@@ -73,5 +73,5 @@ self-contained `server/auth` module.
   (`fabric-vibecoding-agents`), and target-side tooling.
 - MCP server authentication (API-key + JWT) with a plaintext key file.
 
-[0.2.0]: https://github.com/scardoso-lu/fabric-skills-settings/releases/tag/v0.2.0
-[0.1.0]: https://github.com/scardoso-lu/fabric-skills-settings/releases/tag/v0.1.0
+[0.2]: https://github.com/scardoso-lu/fabric-skills-settings/releases/tag/v0.2
+[0.1]: https://github.com/scardoso-lu/fabric-skills-settings/releases/tag/v0.1
