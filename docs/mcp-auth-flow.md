@@ -7,8 +7,8 @@ The `fabric-server` FastMCP server uses **API-key + JWT** authentication. Auth i
 ```
 Client (user's laptop)                   Server (Docker 127.0.0.1:8000)
 ─────────────────────                    ───────────────────────────────
-FABRIC_MCP_API_KEY                       config/api-keys.txt
-  (from shell profile)                     (admin-managed list)
+FABRIC_MCP_API_KEY                       config/api-keys.csv
+  (from shell profile)                     (admin-managed email,apikey CSV)
         │                                        │
         ▼                                        ▼
 POST /auth/login ──{"api_key": "..."} ──► validate key
@@ -127,10 +127,10 @@ services:
   server:
     environment:
       MCP_SERVER_URL: ${MCP_SERVER_URL:-http://127.0.0.1:8000}
-      FABRIC_MCP_API_KEYS_FILE: /config/api-keys.txt
+      FABRIC_MCP_API_KEYS_FILE: /config/api-keys.csv
       FABRIC_MCP_JWT_SECRET: ${FABRIC_MCP_JWT_SECRET}
     volumes:
-      - ./config/api-keys.txt:/config/api-keys.txt:ro  # admin-managed
+      - ./config/api-keys.csv:/config/api-keys.csv:ro  # admin-managed
       - ./data:/data
     ports:
       - "127.0.0.1:8000:8000"
@@ -140,7 +140,7 @@ services:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `FABRIC_MCP_API_KEYS_FILE` | _(unset)_ | Path to file with one API key per line. Auth enabled when set. |
+| `FABRIC_MCP_API_KEYS_FILE` | _(unset)_ | Path to a CSV (`email,apikey` headers, one row per user). Only the `apikey` column is used for auth. Auth enabled when set. |
 | `FABRIC_MCP_API_KEYS` | _(unset)_ | Comma-separated API keys (alternative to file). |
 | `FABRIC_MCP_JWT_SECRET` | _(required when auth enabled)_ | HS256 signing secret. Generate: `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `MCP_SERVER_URL` | derived from `HOST`+`PORT` | Informational — returned in auth responses. |
@@ -148,12 +148,12 @@ services:
 
 ### Admin API key management
 
-Create `server/config/api-keys.txt` on the host. One key per line. Lines starting with `#` are comments:
+Create `server/config/api-keys.csv` on the host. It is a CSV with the headers `email,apikey` and one row per user. Only the `apikey` column is used for authentication; `email` is for admin bookkeeping (mapping a key back to a user):
 
-```
-# Fabric MCP API keys — one per line, one per user
-user-alice-abc123def456
-user-bob-789xyz...
+```csv
+email,apikey
+alice@example.com,user-alice-abc123def456
+bob@example.com,user-bob-789xyz...
 ```
 
 Give each user their key. They set `FABRIC_MCP_API_KEY=<key>` in their shell profile (setup script handles this). Restart the container after adding or removing keys.

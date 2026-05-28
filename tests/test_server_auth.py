@@ -120,13 +120,34 @@ def test_load_api_keys_from_env(monkeypatch):
     assert keys == {"key1", "key2", "key3"}
 
 
-def test_load_api_keys_from_file(tmp_path, monkeypatch):
-    key_file = tmp_path / "api-keys.txt"
-    key_file.write_text("# comment\nkeyA\nkeyB\n\n# another comment\nkeyC\n", encoding="utf-8")
+def test_load_api_keys_from_csv_file(tmp_path, monkeypatch):
+    key_file = tmp_path / "api-keys.csv"
+    key_file.write_text(
+        "email,apikey\n"
+        "alice@example.com,keyA\n"
+        "bob@example.com,keyB\n"
+        "carol@example.com,keyC\n",
+        encoding="utf-8",
+    )
     monkeypatch.delenv("FABRIC_MCP_API_KEYS", raising=False)
     monkeypatch.setenv("FABRIC_MCP_API_KEYS_FILE", str(key_file))
     keys = _load_api_keys()
     assert keys == {"keyA", "keyB", "keyC"}
+
+
+def test_load_api_keys_from_csv_tolerates_header_whitespace_and_blanks(tmp_path, monkeypatch):
+    key_file = tmp_path / "api-keys.csv"
+    key_file.write_text(
+        "email, apikey\n"
+        "alice@example.com, keyA \n"
+        "no-key@example.com,\n"
+        "bob@example.com,keyB\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("FABRIC_MCP_API_KEYS", raising=False)
+    monkeypatch.setenv("FABRIC_MCP_API_KEYS_FILE", str(key_file))
+    keys = _load_api_keys()
+    assert keys == {"keyA", "keyB"}
 
 
 def test_load_api_keys_empty_when_not_configured(monkeypatch):

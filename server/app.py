@@ -8,6 +8,7 @@ user's laptop as plain CLI commands (Claude invokes them via Bash).
 
 from __future__ import annotations
 
+import csv
 import json
 import os
 import time
@@ -30,7 +31,13 @@ _REFRESH_PATH = "/auth/refresh"
 
 
 def _load_api_keys() -> set[str]:
-    """Load valid API keys from FABRIC_MCP_API_KEYS (comma-sep) or FABRIC_MCP_API_KEYS_FILE."""
+    """Load valid API keys from FABRIC_MCP_API_KEYS (comma-sep) or FABRIC_MCP_API_KEYS_FILE.
+
+    The file referenced by FABRIC_MCP_API_KEYS_FILE is a CSV with the headers
+    ``email,apikey`` — one row per user. Only the ``apikey`` column is used for
+    authentication; ``email`` is carried for admin bookkeeping. Header names are
+    matched case-insensitively and may contain surrounding whitespace.
+    """
     keys: set[str] = set()
     env_val = os.environ.get("FABRIC_MCP_API_KEYS", "").strip()
     if env_val:
@@ -42,10 +49,18 @@ def _load_api_keys() -> set[str]:
     if file_path:
         p = Path(file_path)
         if p.is_file():
-            for line in p.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    keys.add(line)
+            reader = csv.DictReader(p.read_text(encoding="utf-8").splitlines())
+            for row in reader:
+                key = next(
+                    (
+                        (value or "").strip()
+                        for name, value in row.items()
+                        if name and name.strip().lower() == "apikey"
+                    ),
+                    "",
+                )
+                if key:
+                    keys.add(key)
     return keys
 
 

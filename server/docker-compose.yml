@@ -3,8 +3,9 @@
 #
 # The image bakes the graph artifact and all server content. No host mount is
 # needed for the graph. MCP auth (API-key + JWT):
-#   - Admin creates ./config/api-keys.txt with one API key per line (lines
-#     starting with # are comments). Each user gets one key from this file.
+#   - Admin creates ./config/api-keys.csv, a CSV with the headers
+#     `email,apikey` and one row per user. Only the apikey column is used for
+#     auth; email is for admin bookkeeping. Each user gets one key from this file.
 #   - FABRIC_MCP_JWT_SECRET must be set (generate: python -c "import secrets;
 #     print(secrets.token_hex(32))"). Add it to a .env file next to this file.
 #   - Clients POST {"api_key": "..."} to /auth/login to receive a 1-hour JWT,
@@ -27,10 +28,10 @@ services:
       HOST: "0.0.0.0"
       LOG_LEVEL: ${LOG_LEVEL:-info}
       MCP_SERVER_URL: ${MCP_SERVER_URL:-http://127.0.0.1:8000}
-      FABRIC_MCP_API_KEYS_FILE: /config/api-keys.txt
+      FABRIC_MCP_API_KEYS_FILE: /config/api-keys.csv
       FABRIC_MCP_JWT_SECRET: ${FABRIC_MCP_JWT_SECRET}
     volumes:
-      - ./config/api-keys.txt:/config/api-keys.txt:ro
+      - ./config/api-keys.csv:/config/api-keys.csv:ro
       - ./data:/data
     ports:
       - "127.0.0.1:8000:8000"
