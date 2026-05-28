@@ -83,7 +83,7 @@ sequenceDiagram
 
 ## Server side — `FabricAuthMiddleware`
 
-Implemented in `server/app.py` as a pure ASGI middleware wrapping the FastMCP app.
+Implemented in `server/auth/middleware.py` as a pure ASGI middleware wrapping the FastMCP app (JWT handling lives in `server/auth/tokens.py`). `server/app.py` wires it on via `install_auth_middleware(app)` and otherwise stays free of auth logic.
 
 ```mermaid
 sequenceDiagram
