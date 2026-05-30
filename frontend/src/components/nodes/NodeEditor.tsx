@@ -118,7 +118,7 @@ export function NodeEditor({
           </div>
         </div>
         {previewMode ? (
-          <div className="prose prose-sm prose-invert max-w-none overflow-auto flex-1 min-h-[300px] rounded-lg border border-base-300 bg-base-300 p-4">
+          <div className="prose prose-sm max-w-none overflow-auto flex-1 min-h-[300px] rounded-lg border border-slate-200 bg-slate-50 p-4">
             {body.trim() ? (
               <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
                 {body}

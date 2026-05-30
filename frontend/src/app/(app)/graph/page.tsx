@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useSearch, useNode } from "@/hooks/useNodes";
-import { addEdge } from "@/lib/api";
+import { useSearch, useNode, useStats } from "@/hooks/useNodes";
+import { addEdge, removeEdge } from "@/lib/api";
 import { kindBadgeClass, managedBadge } from "@/lib/utils";
-import { useStats } from "@/hooks/useNodes";
+import { logAudit } from "@/lib/audit";
 import { NodeGraph } from "@/components/graph/NodeGraph";
 
 export default function GraphPage() {
@@ -27,10 +27,31 @@ export default function GraphPage() {
     (link) => !(removedForNode === nodeId && removedLinks.has(link)),
   );
 
-  function handleRemoveLink(link: string) {
+  async function handleRemoveLink(link: string) {
     if (!nodeId) return;
     setRemovedForNode(nodeId);
-    setRemovedLinks((prev) => { const next = new Set(prev); next.add(link); return next; });
+    setRemovedLinks((prev) => {
+      const next = new Set(prev);
+      next.add(link);
+      return next;
+    });
+    try {
+      await removeEdge(nodeId, link);
+      logAudit({
+        ts: Date.now(),
+        action: "edge_remove",
+        nodeId,
+        nodeKind: nodeDetail?.kind,
+        detail: `→ ${link}`,
+      });
+    } catch {
+      // Revert optimistic removal on error
+      setRemovedLinks((prev) => {
+        const next = new Set(prev);
+        next.delete(link);
+        return next;
+      });
+    }
   }
 
   function handleSearch(e: React.FormEvent) {
@@ -41,12 +62,18 @@ export default function GraphPage() {
   async function handleAddEdge() {
     setEdgeError(null);
     if (!edgeSrc.trim() || !edgeDst.trim()) {
-      setEdgeError("Both src and dst are required");
+      setEdgeError("Both source and destination are required");
       return;
     }
     setEdgeSaving(true);
     try {
       await addEdge(edgeSrc.trim(), edgeDst.trim());
+      logAudit({
+        ts: Date.now(),
+        action: "edge_add",
+        nodeId: edgeSrc.trim(),
+        detail: `→ ${edgeDst.trim()}`,
+      });
       setEdgeSrc("");
       setEdgeDst("");
     } catch (err: unknown) {
@@ -57,124 +84,137 @@ export default function GraphPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col gap-6">
-      <h1 className="text-2xl font-bold">Graph</h1>
-
-      {/* Stats bar */}
-      {stats && (
-        <div className="stats stats-horizontal shadow bg-base-200 text-sm">
-          <div className="stat py-3">
-            <div className="stat-title text-xs">Nodes</div>
-            <div className="stat-value text-lg">{stats.nodes}</div>
-          </div>
-          <div className="stat py-3">
-            <div className="stat-title text-xs">Edges</div>
-            <div className="stat-value text-lg">{stats.edges}</div>
-          </div>
+    <div className="max-w-4xl mx-auto flex flex-col gap-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900">Graph Explorer</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Search, inspect, and manage node relationships</p>
         </div>
-      )}
+        {stats && (
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-2xl font-bold text-blue-600">{stats.nodes}</p>
+              <p className="text-xs text-slate-400">nodes</p>
+            </div>
+            <div className="w-px h-8 bg-slate-200" />
+            <div className="text-right">
+              <p className="text-2xl font-bold text-violet-600">{stats.edges}</p>
+              <p className="text-xs text-slate-400">edges</p>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Search */}
-      <div className="card bg-base-200 shadow">
-        <div className="card-body py-4">
-          <h2 className="card-title text-base">Search nodes</h2>
-          <form className="flex gap-2" onSubmit={handleSearch}>
-            <input
-              type="text"
-              className="input input-bordered input-sm flex-1"
-              placeholder="Search graph nodes…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <button type="submit" className="btn btn-primary btn-sm">
-              Search
-            </button>
-          </form>
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+        <h2 className="text-sm font-semibold text-slate-700 mb-3">Search Nodes</h2>
+        <form className="flex gap-2" onSubmit={handleSearch}>
+          <input
+            type="text"
+            className="input input-bordered input-sm flex-1"
+            placeholder="Search by title or content…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <button type="submit" className="btn btn-primary btn-sm px-5">
+            Search
+          </button>
+        </form>
 
-          {searchLoading && (
-            <div className="flex justify-center py-4">
-              <span className="loading loading-spinner loading-sm" />
-            </div>
-          )}
+        {searchLoading && (
+          <div className="flex justify-center py-4">
+            <span className="loading loading-spinner loading-sm text-primary" />
+          </div>
+        )}
 
-          {searchData && searchData.hits.length === 0 && (
-            <p className="text-sm text-base-content/50">No results for "{searchData.query}"</p>
-          )}
+        {searchData && searchData.hits.length === 0 && (
+          <p className="text-sm text-slate-400 mt-3 italic">
+            No results for &ldquo;{searchData.query}&rdquo;
+          </p>
+        )}
 
-          {searchData && searchData.hits.length > 0 && (
-            <div className="flex flex-col gap-1 mt-2">
-              {searchData.hits.map((hit) => (
-                <button
-                  key={hit.id}
-                  type="button"
-                  className={`text-left rounded-lg px-3 py-2 hover:bg-base-300 transition-colors ${
-                    selectedId === hit.id ? "bg-base-300 ring-1 ring-primary" : ""
-                  }`}
-                  onClick={() => setSelectedId(hit.id)}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-sm">{hit.title}</span>
-                    <span className="badge badge-ghost badge-xs font-mono">
-                      {hit.score.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="text-xs text-base-content/50 font-mono">{hit.id}</div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {searchData && searchData.hits.length > 0 && (
+          <div className="flex flex-col gap-1 mt-3">
+            {searchData.hits.map((hit) => (
+              <button
+                key={hit.id}
+                type="button"
+                className={`text-left rounded-lg px-3 py-2.5 hover:bg-slate-50 transition-colors border ${
+                  selectedId === hit.id
+                    ? "border-primary bg-blue-50"
+                    : "border-transparent"
+                }`}
+                onClick={() => setSelectedId(hit.id)}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium text-sm text-slate-800">{hit.title}</span>
+                  <span className="text-xs font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
+                    {hit.score.toFixed(2)}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-400 font-mono mt-0.5">{hit.id}</div>
+                {hit.why_matched && (
+                  <div className="text-xs text-slate-400 mt-0.5 italic">{hit.why_matched}</div>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Node detail */}
       {nodeDetail && (
-        <div className="card bg-base-200 shadow">
-          <div className="card-body py-4 gap-4">
-            {/* Header */}
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <h2 className="card-title text-base">{nodeDetail.title}</h2>
-                <span className="font-mono text-xs text-base-content/50">{nodeDetail.id}</span>
-              </div>
-              <div className="flex gap-1 shrink-0">
-                <span className={`badge badge-sm ${kindBadgeClass(nodeDetail.kind)}`}>
-                  {nodeDetail.kind}
-                </span>
-                <span className={`badge badge-sm ${managedBadge(nodeDetail.managed)}`}>
-                  {nodeDetail.managed ? "managed" : "bundled"}
-                </span>
-              </div>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col gap-5">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-slate-900">{nodeDetail.title}</h2>
+              <span className="font-mono text-xs text-slate-400">{nodeDetail.id}</span>
             </div>
-
-            {nodeDetail.description && (
-              <p className="text-sm text-base-content/70">{nodeDetail.description}</p>
-            )}
-
-            {/* Visual neighborhood graph */}
-            <div className="bg-base-300 rounded-lg p-2">
-              <NodeGraph key={nodeDetail.id} node={nodeDetail} onSelectNode={setSelectedId} />
+            <div className="flex gap-1.5 shrink-0">
+              <span className={`badge badge-sm ${kindBadgeClass(nodeDetail.kind)}`}>
+                {nodeDetail.kind}
+              </span>
+              <span className={`badge badge-sm ${managedBadge(nodeDetail.managed)}`}>
+                {nodeDetail.managed ? "managed" : "bundled"}
+              </span>
             </div>
+          </div>
 
-            {/* Outbound links */}
+          {nodeDetail.description && (
+            <p className="text-sm text-slate-600 -mt-2">{nodeDetail.description}</p>
+          )}
+
+          {/* Graph visualization */}
+          <div className="bg-slate-900 rounded-xl overflow-hidden">
+            <NodeGraph
+              key={nodeDetail.id}
+              node={nodeDetail}
+              onSelectNode={setSelectedId}
+            />
+          </div>
+
+          {/* Links */}
+          <div className="grid md:grid-cols-2 gap-4">
             {localLinks.length > 0 && (
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-base-content/50 mb-1">
-                  Outbound links
-                </div>
-                <div className="flex flex-wrap gap-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">
+                  Outbound ({localLinks.length})
+                </p>
+                <div className="flex flex-wrap gap-1.5">
                   {localLinks.map((link) => (
                     <div key={link} className="flex items-center gap-0.5">
                       <button
                         type="button"
-                        className="badge badge-outline badge-sm font-mono hover:badge-primary"
+                        className="badge badge-outline badge-sm font-mono hover:badge-primary transition-colors"
                         onClick={() => setSelectedId(link)}
                       >
                         {link}
                       </button>
                       <button
                         type="button"
-                        className="btn btn-ghost btn-xs text-error px-1"
-                        title="Remove link"
+                        className="btn btn-ghost btn-xs text-error px-1 h-5 min-h-5"
+                        title="Remove edge"
                         onClick={() => handleRemoveLink(link)}
                       >
                         ✕
@@ -185,18 +225,17 @@ export default function GraphPage() {
               </div>
             )}
 
-            {/* Inbound links */}
             {nodeDetail.inbound_links && nodeDetail.inbound_links.length > 0 && (
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-base-content/50 mb-1">
-                  Inbound links
-                </div>
-                <div className="flex flex-wrap gap-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">
+                  Inbound ({nodeDetail.inbound_links.length})
+                </p>
+                <div className="flex flex-wrap gap-1.5">
                   {nodeDetail.inbound_links.map((link) => (
                     <button
                       key={link}
                       type="button"
-                      className="badge badge-outline badge-sm font-mono hover:badge-secondary"
+                      className="badge badge-outline badge-sm font-mono hover:badge-secondary transition-colors"
                       onClick={() => setSelectedId(link)}
                     >
                       {link}
@@ -209,47 +248,51 @@ export default function GraphPage() {
         </div>
       )}
 
-      {/* Edge management */}
-      <div className="card bg-base-200 shadow">
-        <div className="card-body py-4">
-          <h2 className="card-title text-base">Add edge</h2>
-          {edgeError && (
-            <div role="alert" className="alert alert-error text-sm py-2">
-              <span>{edgeError}</span>
-            </div>
-          )}
-          <div className="flex gap-2 items-end flex-wrap">
-            <label className="form-control flex-1 min-w-40">
-              <div className="label py-0"><span className="label-text text-xs">Source node ID</span></div>
-              <input
-                type="text"
-                className="input input-bordered input-sm font-mono"
-                placeholder="skills/git-commit"
-                value={edgeSrc}
-                onChange={(e) => setEdgeSrc(e.target.value)}
-              />
-            </label>
-            <span className="pb-1">→</span>
-            <label className="form-control flex-1 min-w-40">
-              <div className="label py-0"><span className="label-text text-xs">Destination node ID</span></div>
-              <input
-                type="text"
-                className="input input-bordered input-sm font-mono"
-                placeholder="rules/security"
-                value={edgeDst}
-                onChange={(e) => setEdgeDst(e.target.value)}
-              />
-            </label>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={handleAddEdge}
-              disabled={edgeSaving}
-            >
-              {edgeSaving ? <span className="loading loading-spinner loading-xs" /> : null}
-              Add
-            </button>
+      {/* Add edge */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+        <h2 className="text-sm font-semibold text-slate-700 mb-3">Add Edge</h2>
+        {edgeError && (
+          <div role="alert" className="alert alert-error text-sm py-2 mb-3">
+            <span>{edgeError}</span>
           </div>
+        )}
+        <div className="flex gap-2 items-end flex-wrap">
+          <label className="form-control flex-1 min-w-40">
+            <div className="label py-0">
+              <span className="label-text text-xs text-slate-500">Source node ID</span>
+            </div>
+            <input
+              type="text"
+              className="input input-bordered input-sm font-mono"
+              placeholder="skills/git-commit"
+              value={edgeSrc}
+              onChange={(e) => setEdgeSrc(e.target.value)}
+            />
+          </label>
+          <div className="pb-1 text-slate-400 font-bold">→</div>
+          <label className="form-control flex-1 min-w-40">
+            <div className="label py-0">
+              <span className="label-text text-xs text-slate-500">Destination node ID</span>
+            </div>
+            <input
+              type="text"
+              className="input input-bordered input-sm font-mono"
+              placeholder="rules/security"
+              value={edgeDst}
+              onChange={(e) => setEdgeDst(e.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={handleAddEdge}
+            disabled={edgeSaving}
+          >
+            {edgeSaving ? (
+              <span className="loading loading-spinner loading-xs" />
+            ) : null}
+            Add edge
+          </button>
         </div>
       </div>
     </div>

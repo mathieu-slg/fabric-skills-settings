@@ -17,8 +17,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Middleware already blocks unauthenticated access to app routes,
-    // but redirect authenticated users who land here directly.
     if (isAuthenticated()) router.replace("/dashboard");
   }, [router]);
 
@@ -33,7 +31,6 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const { expires_at } = await login(apiKey);
-      // Store only the expiry hint client-side (not the token itself).
       setExpiresAt(expires_at);
       router.push("/dashboard");
     } catch (err: unknown) {
@@ -44,38 +41,63 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-base-100 p-4">
-      <div className="card w-full max-w-sm bg-base-200 shadow-xl">
-        <div className="card-body gap-4">
-          <h2 className="card-title text-xl">fabric admin</h2>
-          <p className="text-sm text-base-content/60">
-            Enter your API key to access the server manager
+    <div
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{ background: "#f8fafc" }}
+    >
+      <div className="w-full max-w-sm">
+        {/* Brand mark */}
+        <div className="flex items-center justify-center gap-3 mb-8">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
+            style={{ background: "#2563eb" }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-lg font-bold text-slate-900 leading-tight">Fabric Platform</p>
+            <p className="text-xs text-slate-400 leading-tight">Admin Console</p>
+          </div>
+        </div>
+
+        {/* Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+          <h2 className="text-lg font-semibold text-slate-900 mb-1">Sign in</h2>
+          <p className="text-sm text-slate-500 mb-6">
+            Enter your API key to access the console
           </p>
 
           {error && (
-            <div role="alert" className="alert alert-error text-sm py-2">
+            <div role="alert" className="alert alert-error text-sm py-2.5 mb-4">
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
               <span>{error}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <label className="form-control w-full">
-              <div className="label">
-                <span className="label-text">API Key</span>
+              <div className="label pb-1">
+                <span className="label-text text-sm font-medium text-slate-700">API Key</span>
               </div>
               <input
                 type="password"
                 className="input input-bordered w-full"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="your-api-key"
+                placeholder="••••••••••••••••"
                 autoComplete="current-password"
                 autoFocus
               />
             </label>
             <button
               type="submit"
-              className="btn btn-primary w-full"
+              className="btn btn-primary w-full mt-1"
               disabled={loading}
             >
               {loading ? (
@@ -85,6 +107,10 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
+
+        <p className="text-center text-xs text-slate-400 mt-6">
+          Access is restricted to authorized personnel
+        </p>
       </div>
     </div>
   );

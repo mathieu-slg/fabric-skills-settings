@@ -17,7 +17,7 @@ export default async function RootLayout({
   await headers();
 
   return (
-    <html lang="en" data-theme="dark">
+    <html lang="en" data-theme="enterprise">
       <body className="bg-base-100 text-base-content">{children}</body>
     </html>
   );
