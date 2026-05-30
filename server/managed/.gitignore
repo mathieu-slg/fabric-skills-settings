@@ -1,0 +1,2 @@
+# User-managed content lives server-side. Never commit these.
+*.md

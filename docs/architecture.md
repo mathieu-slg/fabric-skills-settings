@@ -145,9 +145,9 @@ fabric-vibecoding-settings/
 │   ├── content/                      knowledge-graph source markdown
 │   ├── skills/                       skill SKILL.md files
 │   ├── builders/                     build-graph.py (build-time only)
-│   ├── Dockerfile
-│   └── docker-compose.yml
+│   └── Dockerfile
 │
+├── docker-compose.yml                multi-service compose (server + frontend)
 ├── tests/                            pytest suite + _validation/ helpers
 └── docs/
 ```

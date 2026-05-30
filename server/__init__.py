@@ -6,7 +6,7 @@ process. Same tool surface, different transport.
 
 Run with::
 
-    docker compose up --build              # from server/
+    docker compose up --build              # from repo root
     # or, without Docker:
     python -m server
 

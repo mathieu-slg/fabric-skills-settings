@@ -7,7 +7,7 @@ This repository is the source package and installer for Microsoft Fabric agent p
 The repo has three top-level packages:
 
 - **`cli/`** — everything installed on the user's laptop: the wheel installer, profile entrypoints + 4 subagents (Claude + Codex), setup scripts, and the target-side tools shipped to `tool/` in the target repo. Tools in `cli/tools/` are invoked via Bash, not MCP.
-- **`server/`** — FastMCP HTTP server (Docker). Serves graph knowledge tools plus fabric helpers that run without ms-fabric-cli. Start it with `docker compose up` from `server/`.
+- **`server/`** — FastMCP HTTP server (Docker). Serves graph knowledge tools plus fabric helpers that run without ms-fabric-cli. Start it with `docker compose up` from the repo root.
 
 Source-package invariants (layout + profile guidance) are enforced by pytest modules `tests/test_install_package.py` and `tests/test_agent_guidance.py`, backed by importable logic in `tests/_validation/`.
 
@@ -59,7 +59,8 @@ Tools shipped to the target repo's `tool/` dir and invoked via Bash. Fabric help
 | `server/content/` | Knowledge-graph content tree (`entry.md`, `session/`, `workflow/`, `rules/`, `indexes/`, …) and rules. |
 | `server/skills/` | Skill definitions served via the graph. NOT shipped to target repos. |
 | `server/builders/` | Source-only graph builders: `build-graph.py`, `build-agent-capability-graph.py`. |
-| `server/Dockerfile`, `server/docker-compose.yml` | Container definition for local dev. |
+| `server/Dockerfile` | Server container image definition. |
+| `docker-compose.yml` | Multi-service compose file (server + frontend) at repo root. |
 | `tests/` | Unit + integration tests, including the source-package validators (`test_install_package.py`, `test_agent_guidance.py`) and their importable logic in `tests/_validation/`. Run with `uv run --group dev pytest`. |
 
 ## Knowledge graph

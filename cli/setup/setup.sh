@@ -4,8 +4,7 @@
 # Scope: configure the user's laptop so Claude/Codex can talk to the Fabric
 # MCP server AND drive the local Fabric CLI (fab) for notebook / pipeline /
 # lakehouse / workspace work. The MCP server itself lives in Docker — start
-# it separately with `docker compose up --build` from the source repo's
-# `server/` directory.
+# it separately with `docker compose up --build` from the source repo root.
 #
 # This script:
 #   1. Verifies uv is installed.
@@ -304,6 +303,6 @@ echo "Setup complete."
 for a in "${actions[@]}"; do echo "- $a"; done
 echo ""
 echo "Next: start the Fabric MCP server."
-echo "  cd <fabric-vibecoding-settings>/server"
+echo "  cd <fabric-vibecoding-settings>"
 echo "  docker compose up --build"
 echo "Then open Claude Code (or Codex) in this project."
