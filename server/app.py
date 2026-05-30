@@ -7,6 +7,9 @@ user's laptop as plain CLI commands (Claude invokes them via Bash).
 
 Authentication (API-key sourcing, JWT, and the ASGI middleware) lives in
 ``server/auth``; this module only wires it onto the app.
+
+The admin REST API (``/api/v1/*``) is mounted alongside the MCP app in a
+parent Starlette app so both share the same auth and CORS middleware stack.
 """
 
 from __future__ import annotations
@@ -14,8 +17,11 @@ from __future__ import annotations
 import os
 
 from mcp.server.fastmcp import FastMCP
+from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
+from starlette.routing import Mount
 
+from .api.routes import make_routes
 from .auth import install_auth_middleware
 from .tools.data import tools as data_tools
 from .tools.graph import tools as graph_tools
@@ -43,6 +49,9 @@ def build_app():
     on every subsequent request. Clients refresh via POST /auth/refresh (old JTI is
     revoked, blocking replay of the superseded token). When no API keys are configured
     the server accepts all requests — suitable for local single-user dev.
+
+    The admin REST API lives at /api/v1/* and is mounted in a parent Starlette app
+    alongside the MCP app so both share auth + CORS middleware.
     """
     mcp = FastMCP("fabric-server")
     graph_tools.register(mcp)
@@ -50,7 +59,13 @@ def build_app():
     validate_tools.register(mcp)
     data_tools.register(mcp)
 
-    app = mcp.streamable_http_app()
+    mcp_app = mcp.streamable_http_app()
+
+    # Parent Starlette app: /api routes handled directly, everything else forwarded to MCP.
+    app = Starlette(routes=[
+        Mount("/api", routes=make_routes()),
+        Mount("/", app=mcp_app),
+    ])
 
     # FabricAuthMiddleware added first (inner); CORSMiddleware added last (outermost).
     install_auth_middleware(app)
@@ -60,7 +75,7 @@ def build_app():
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allow_origins,
-        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
         expose_headers=["Mcp-Session-Id"],
     )

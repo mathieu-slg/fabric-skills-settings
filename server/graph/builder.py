@@ -10,6 +10,13 @@ from .schema import Edge, Node, first_h1, id_from_path, kind_for_id
 from .store import GraphStore
 
 DISCOVER_PATTERNS: tuple[tuple[str, str], ...] = (
+    # Managed (persistent volume) — listed before server/ so managed overrides bundled on id collision.
+    ("server/managed/content/rules/*.md", "rule"),
+    ("server/managed/content/skill-fixes/*.md", "skill-fix"),
+    ("server/managed/content/memory/**/*.md", "memory"),
+    ("server/managed/content/**/*.md", "content"),
+    ("server/managed/skills/*/SKILL.md", "skill"),
+    ("server/managed/skills/*/sections/*.md", "content"),
     # Server-side: content, rules, skill-fixes, memory, and skills are all owned by server/.
     ("server/content/rules/*.md", "rule"),
     ("server/content/skill-fixes/*.md", "skill-fix"),

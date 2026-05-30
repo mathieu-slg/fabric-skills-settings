@@ -1,33 +1,20 @@
-# Local dev: one container hosting the fabric + graph + Fabric-helper MCP tools.
 # Run from the server/ directory: `docker compose up --build`.
 #
-# The image bakes the graph artifact and all server content. No host mount is
-# needed for the graph. MCP auth (API-key + JWT):
-#   - The API-key store is a CSV with the headers `email,apikey`, one row per
-#     user. Only the apikey column is used for auth; email is for admin
-#     bookkeeping. FABRIC_MCP_API_KEYS_SOURCE picks where the CSV is loaded from:
-#       * file (default) — read from FABRIC_MCP_API_KEYS_FILE on disk. Admin
-#         creates ./config/api-keys.csv and it is mounted read-only below.
-#       * azure-blob — download from Azure Blob Storage. Set the container/blob
-#         and either a connection string or an account URL (managed identity):
-#           FABRIC_MCP_API_KEYS_SOURCE: azure-blob
-#           FABRIC_MCP_API_KEYS_BLOB_CONTAINER: keys
-#           FABRIC_MCP_API_KEYS_BLOB_NAME: api-keys.csv
-#           FABRIC_MCP_API_KEYS_BLOB_CONNECTION_STRING: ${AZURE_BLOB_CONN}  # or:
-#           FABRIC_MCP_API_KEYS_BLOB_ACCOUNT_URL: https://acct.blob.core.windows.net
-#         Azure mode needs the azure-storage-blob / azure-identity packages
-#         (the 'server-azure' extra) baked into the image.
-#   - FABRIC_MCP_JWT_SECRET must be set (generate: python -c "import secrets;
-#     print(secrets.token_hex(32))"). Add it to a .env file next to this file.
-#   - Clients POST {"api_key": "..."} to /auth/login to receive a 1-hour JWT,
-#     then send Authorization: Bearer <token> with every MCP request.
-#   - Auth is disabled entirely when no key source is configured (file source
-#     with no FABRIC_MCP_API_KEYS_FILE) and FABRIC_MCP_API_KEYS is empty
-#     (local single-user dev mode).
-# Env passed from host:
-#   - FABRIC_WORKSPACE_ID
+# Two services:
+#   server  — FastMCP HTTP server (MCP tools + admin REST API) on port 8000
+#   frontend — Next.js management UI on port 3000
 #
-# Host-only binding (127.0.0.1:8000) — no LAN exposure.
+# MCP auth (API-key + JWT):
+#   - FABRIC_MCP_JWT_SECRET must be set (generate: python -c "import secrets; print(secrets.token_hex(32))")
+#   - API keys: create ./config/api-keys.csv with headers `email,apikey`.
+#   - Set to azure-blob source via FABRIC_MCP_API_KEYS_SOURCE (see comments below).
+#   - Auth is disabled when no keys are configured — local dev mode.
+#
+# Managed content (persistent across restarts):
+#   - User-created skills and content go to ./data/managed/ (volume-mounted into server).
+#   - The graph auto-rebuilds after every write.
+#
+# Host-only binding (127.0.0.1) — no LAN exposure.
 
 services:
   server:
@@ -40,14 +27,44 @@ services:
       HOST: "0.0.0.0"
       LOG_LEVEL: ${LOG_LEVEL:-info}
       MCP_SERVER_URL: ${MCP_SERVER_URL:-http://127.0.0.1:8000}
-      # Default: load keys from the mounted CSV. Set to azure-blob to load from
-      # Azure Blob Storage instead (see the BLOB_* vars described above).
+      # CORS: allow requests from the frontend container and local browser.
+      FABRIC_CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
+      # API key source. Default: read from mounted CSV.
+      # Set to azure-blob for Azure Blob Storage (needs the 'server-azure' extra):
+      #   FABRIC_MCP_API_KEYS_SOURCE: azure-blob
+      #   FABRIC_MCP_API_KEYS_BLOB_CONTAINER: keys
+      #   FABRIC_MCP_API_KEYS_BLOB_NAME: api-keys.csv
+      #   FABRIC_MCP_API_KEYS_BLOB_CONNECTION_STRING: ${AZURE_BLOB_CONN}
       FABRIC_MCP_API_KEYS_SOURCE: ${FABRIC_MCP_API_KEYS_SOURCE:-file}
       FABRIC_MCP_API_KEYS_FILE: /config/api-keys.csv
       FABRIC_MCP_JWT_SECRET: ${FABRIC_MCP_JWT_SECRET}
     volumes:
       - ./config/api-keys.csv:/config/api-keys.csv:ro
       - ./data:/data
+      - ./data/managed:/app/server/managed
     ports:
       - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/stats')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: docker/Dockerfile
+    container_name: fabric-admin-ui
+    environment:
+      # URL the browser uses to reach the server API.
+      # With host-only ports this must be localhost (browser → host → container).
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      # Internal URL for Next.js server-side requests (rewrites) if needed.
+      FABRIC_API_URL: "http://server:8000"
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - server
     restart: unless-stopped

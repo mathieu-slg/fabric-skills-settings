@@ -148,6 +148,11 @@ _PATH_PREFIX_TO_ID: tuple[tuple[str, str], ...] = (
     ("memory/rules/", "rules/"),
     ("memory/skill-fixes/", "skill-fixes/"),
     ("memory/", "memory/"),
+    # Managed (persistent volume) — must come before server/content/ so managed wins on id collision.
+    ("server/managed/content/rules/", "rules/"),
+    ("server/managed/content/skill-fixes/", "skill-fixes/"),
+    ("server/managed/content/memory/", "memory/"),
+    ("server/managed/content/", "graph-content/"),
     # Source-package layout: server/content/ owns graph-content, rules, skill-fixes, memory.
     ("server/content/rules/", "rules/"),
     ("server/content/skill-fixes/", "skill-fixes/"),

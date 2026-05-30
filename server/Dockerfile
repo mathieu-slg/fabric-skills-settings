@@ -37,6 +37,13 @@ COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/pytho
 COPY --from=builder /build/server                /app/server
 COPY --from=builder /build/dist/.graph           /app/dist/.graph
 
+# Create managed content directories (volume-mounted at runtime for persistence).
+RUN mkdir -p /app/server/managed/skills \
+             /app/server/managed/content/rules \
+             /app/server/managed/content/skill-fixes \
+             /app/server/managed/content/memory && \
+    chown -R server:server /app/server/managed
+
 WORKDIR /app
 USER server
 EXPOSE 8000
