@@ -71,6 +71,11 @@ def test_cli_layout():
 
 
 # ── server/ : MCP servers + graph runtime + graph content + graph builders ───
+def test_docker_compose_at_root():
+    """docker-compose.yml lives at the repo root (not inside server/)."""
+    assert (ROOT / "docker-compose.yml").is_file()
+
+
 def test_server_layout():
     """server/ is self-contained: FastMCP app + graph runtime + graph content + builders + Dockerfile."""
     server = ROOT / "server"
@@ -79,7 +84,7 @@ def test_server_layout():
     assert not (server / "fabric_tools.py").exists()
     assert not (server / "graph_tools.py").exists()
     assert (server / "Dockerfile").is_file()
-    assert (server / "docker-compose.yml").is_file()
+    assert not (server / "docker-compose.yml").exists()  # moved to repo root
     assert (server / "graph" / "store.py").is_file()
     assert (server / "graph" / "search.py").is_file()
     assert (server / "graph" / "writes.py").is_file()
