@@ -25,6 +25,7 @@ from starlette.routing import Route
 
 logger = logging.getLogger(__name__)
 
+from ..auth.repository import get_store
 from ..graph import writes as graph_writes
 from ..graph.schema import parse_frontmatter
 from ..graph.search import search
@@ -352,6 +353,59 @@ async def get_template(request: Request) -> Response:
     return _json({"name": name, "frontmatter": fm, "body": body})
 
 
+# ── API key management ────────────────────────────────────────────────────────
+
+async def list_apikeys(request: Request) -> Response:
+    store = get_store()
+    if store is None:
+        return _error("auth not configured — no API key store available", 503)
+    return _json({"entries": store.list_entries(), "writable": store.is_writable()})
+
+
+async def create_apikey(request: Request) -> Response:
+    store = get_store()
+    if store is None:
+        return _error("auth not configured", 503)
+    if not store.is_writable():
+        return _error("key store is read-only (FABRIC_MCP_API_KEYS_FILE not set)", 501)
+    payload = await _parse_json(request)
+    if payload is None:
+        return _error("invalid or oversized JSON body")
+    email = (payload.get("email") or "").strip()
+    key = (payload.get("key") or "").strip()
+    if not email:
+        return _error("'email' is required")
+    if not key:
+        return _error("'key' is required")
+    try:
+        entry = store.add(email, key)
+    except ValueError as exc:
+        return _error(str(exc))
+    except Exception as exc:
+        logger.error("create_apikey error: %s", exc, exc_info=True)
+        return _error("internal error", 500)
+    return _json(entry, 201)
+
+
+async def delete_apikey(request: Request) -> Response:
+    store = get_store()
+    if store is None:
+        return _error("auth not configured", 503)
+    if not store.is_writable():
+        return _error("key store is read-only (FABRIC_MCP_API_KEYS_FILE not set)", 501)
+    entry_id = request.path_params.get("entry_id", "").strip()
+    if not entry_id:
+        return _error("entry_id is required", 400)
+    try:
+        found = store.remove(entry_id)
+    except Exception as exc:
+        logger.error("delete_apikey error: %s", exc, exc_info=True)
+        return _error("internal error", 500)
+    if not found:
+        return _error(f"API key not found: {entry_id!r}", 404)
+    return _json({"deleted": entry_id})
+
+
 # ── OpenAPI spec + ReDoc docs ──────────────────────────────────────────────────
 
 _OPENAPI_SPEC: dict = {
@@ -644,6 +698,64 @@ _OPENAPI_SPEC: dict = {
                 },
             },
         },
+        "/api/v1/apikeys": {
+            "get": {
+                "tags": ["API Keys"],
+                "summary": "List API key entries (keys are masked)",
+                "responses": {
+                    "200": {"description": "API key list", "content": {"application/json": {"schema": {
+                        "type": "object",
+                        "properties": {
+                            "entries": {"type": "array", "items": {
+                                "type": "object",
+                                "properties": {
+                                    "id": {"type": "string", "nullable": True},
+                                    "email": {"type": "string"},
+                                    "masked_key": {"type": "string"},
+                                    "readonly": {"type": "boolean"},
+                                },
+                            }},
+                            "writable": {"type": "boolean"},
+                        },
+                    }}}},
+                    "503": {"description": "Auth not configured"},
+                },
+            },
+            "post": {
+                "tags": ["API Keys"],
+                "summary": "Add a new API key entry",
+                "requestBody": {
+                    "required": True,
+                    "content": {"application/json": {"schema": {
+                        "type": "object",
+                        "properties": {
+                            "email": {"type": "string"},
+                            "key": {"type": "string"},
+                        },
+                        "required": ["email", "key"],
+                    }}},
+                },
+                "responses": {
+                    "201": {"description": "Entry created"},
+                    "400": {"description": "Missing or invalid fields"},
+                    "501": {"description": "Key store is read-only"},
+                    "503": {"description": "Auth not configured"},
+                },
+            },
+        },
+        "/api/v1/apikeys/{entry_id}": {
+            "delete": {
+                "tags": ["API Keys"],
+                "summary": "Remove an API key entry by ID",
+                "parameters": [{"name": "entry_id", "in": "path", "required": True, "schema": {"type": "string"}}],
+                "responses": {
+                    "200": {"description": "Entry deleted"},
+                    "404": {"description": "Entry not found"},
+                    "501": {"description": "Key store is read-only"},
+                    "503": {"description": "Auth not configured"},
+                },
+            },
+        },
     },
 }
 
@@ -692,4 +804,7 @@ def make_routes() -> list[Route]:
         Route("/v1/edges",                    remove_edge,   methods=["DELETE"]),
         Route("/v1/templates",                list_templates, methods=["GET"]),
         Route("/v1/templates/{name}",         get_template,  methods=["GET"]),
+        Route("/v1/apikeys",                  list_apikeys,  methods=["GET"]),
+        Route("/v1/apikeys",                  create_apikey, methods=["POST"]),
+        Route("/v1/apikeys/{entry_id}",       delete_apikey, methods=["DELETE"]),
     ]

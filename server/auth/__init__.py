@@ -18,8 +18,10 @@ from .repository import (
     CsvApiKeyRepository,
     EnvVarApiKeyRepository,
     LocalFileApiKeyRepository,
+    MutableApiKeyStore,
     build_api_key_repository,
     build_csv_api_key_repository,
+    get_store,
     load_api_keys,
     parse_api_keys_csv,
 )
@@ -33,8 +35,10 @@ __all__ = [
     "CsvApiKeyRepository",
     "EnvVarApiKeyRepository",
     "LocalFileApiKeyRepository",
+    "MutableApiKeyStore",
     "build_api_key_repository",
     "build_csv_api_key_repository",
+    "get_store",
     "load_api_keys",
     "parse_api_keys_csv",
     # tokens

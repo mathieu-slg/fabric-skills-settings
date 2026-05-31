@@ -256,6 +256,20 @@ def test_middleware_health_bypasses_auth():
     assert cap.status == 200  # passed through to inner app, no token required
 
 
+def test_middleware_well_known_bypasses_auth():
+    mw, _ = _make_middleware()
+    cap = _Captured()
+    asyncio.run(mw(_http_scope("/mcp/.well-known/oauth-authorization-server"), cap.receive, cap.send))
+    assert cap.status == 200  # OAuth discovery must be publicly accessible
+
+
+def test_middleware_api_key_as_bearer_token_passes_through():
+    mw, _ = _make_middleware()
+    cap = _Captured()
+    asyncio.run(mw(_http_scope("/mcp", token="good-key"), cap.receive, cap.send))
+    assert cap.status == 200  # raw API key accepted as Bearer token
+
+
 def test_middleware_passes_non_http_scopes():
     received = []
 
@@ -271,7 +285,9 @@ def test_middleware_passes_non_http_scopes():
 
 class _FakeApp:
     def __init__(self):
+        from types import SimpleNamespace
         self.middlewares = []
+        self.state = SimpleNamespace()
 
     def add_middleware(self, cls, **kwargs):
         self.middlewares.append((cls, kwargs))
@@ -289,7 +305,8 @@ def test_install_auth_middleware_enabled_with_keys(monkeypatch):
     app = _FakeApp()
     assert install_auth_middleware(app) is True
     assert app.middlewares[0][0] is FabricAuthMiddleware
-    assert app.middlewares[0][1]["api_keys"] == {"key1"}
+    # api_keys is now a MutableApiKeyStore; check membership rather than equality
+    assert "key1" in app.middlewares[0][1]["api_keys"]
 
 
 def test_install_auth_middleware_disabled_without_keys(monkeypatch):
@@ -297,6 +314,18 @@ def test_install_auth_middleware_disabled_without_keys(monkeypatch):
     app = _FakeApp()
     assert install_auth_middleware(app) is False
     assert app.middlewares == []
+
+
+def test_install_auth_middleware_clears_singleton_when_disabled(monkeypatch):
+    """get_store() must return None when auth is disabled, even after a prior run."""
+    from server.auth.repository import get_store, _set_store
+    # Seed a stale store.
+    from server.auth.repository import MutableApiKeyStore
+    _set_store(MutableApiKeyStore())
+
+    _clear_key_env(monkeypatch)  # no keys → auth disabled
+    assert install_auth_middleware(_FakeApp()) is False
+    assert get_store() is None  # stale store must be cleared
 
 
 def test_install_auth_middleware_requires_secret_when_keys_present(monkeypatch):
