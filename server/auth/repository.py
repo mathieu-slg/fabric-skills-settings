@@ -21,15 +21,24 @@ into the set of keys, so the CSV format is defined in exactly one place.
 Azure mode needs the optional ``azure-storage-blob`` (and, for managed-identity
 auth, ``azure-identity``) packages — install the ``server-azure`` extra. The
 import is lazy so file-mode deployments incur no Azure dependency.
+
+:class:`MutableApiKeyStore` is a thread-safe wrapper used by
+:func:`~server.auth.middleware.install_auth_middleware`. It supports live
+add/remove and persists changes back to the CSV file (file-mode only).
 """
 
 from __future__ import annotations
 
 import csv
 import io
+import logging
 import os
+import threading
+import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Accepted spellings for the source selector, normalized to the canonical name.
 _FILE_ALIASES = {"", "file", "local", "disk", "filesystem"}
@@ -58,6 +67,204 @@ def parse_api_keys_csv(text: str) -> set[str]:
             keys.add(key)
     return keys
 
+
+def _parse_entries_csv(text: str) -> tuple[list[dict], bool]:
+    """Parse CSV to entry dicts, handling both ``email,apikey`` and ``id,email,apikey``.
+
+    Returns ``(entries, migrated)`` where ``migrated`` is True when UUIDs were
+    generated (old format without ``id`` column), signalling the caller to
+    write back the canonical three-column format.
+    """
+    entries: list[dict] = []
+    migrated = False
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames:
+        return [], False
+    headers = {(h.strip().lower() if h else "") for h in reader.fieldnames}
+    for row in reader:
+        normalized = {(k.strip().lower() if k else ""): (v or "").strip() for k, v in row.items()}
+        key = normalized.get("apikey", "")
+        if not key:
+            continue
+        email = normalized.get("email", "")
+        entry_id = normalized.get("id", "")
+        if not entry_id:
+            entry_id = str(uuid.uuid4())
+            migrated = True
+        entries.append({"id": entry_id, "email": email, "key": key})
+    return entries, migrated
+
+
+def _mask_key(key: str) -> str:
+    """Return a display-safe masked version of an API key."""
+    if len(key) <= 8:
+        return "****"
+    return key[:4] + "****" + key[-4:]
+
+
+# ── Mutable store (used by the live auth middleware) ──────────────────────────
+
+class MutableApiKeyStore:
+    """Thread-safe, optionally file-backed API key store.
+
+    Used by :func:`~server.auth.middleware.install_auth_middleware` so that CRUD
+    operations via the admin API are visible to the auth check immediately
+    (no restart needed). Only the file backend (``FABRIC_MCP_API_KEYS_FILE``)
+    supports mutations; env-var and Azure Blob entries are read-only.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._file_path: str | None = None
+        self._file_entries: list[dict] = []      # {id, email, key} from file
+        self._readonly_keys: set[str] = set()    # from env var / Azure Blob
+
+    @classmethod
+    def from_env(cls) -> "MutableApiKeyStore":
+        """Build a store from the current process environment."""
+        store = cls()
+
+        # Inline env-var source (always honored, read-only).
+        env_val = os.environ.get("FABRIC_MCP_API_KEYS", "").strip()
+        if env_val:
+            keys = {k.strip() for k in env_val.split(",") if k.strip()}
+            store._readonly_keys |= keys
+            logger.info("Loaded %d API key(s) from FABRIC_MCP_API_KEYS", len(keys))
+
+        source = os.environ.get("FABRIC_MCP_API_KEYS_SOURCE", "").strip().lower()
+
+        if source in _FILE_ALIASES:
+            file_path = os.environ.get("FABRIC_MCP_API_KEYS_FILE", "").strip()
+            if file_path:
+                store._file_path = file_path
+                store._load_from_file()
+
+        elif source in _AZURE_BLOB_ALIASES:
+            # Azure Blob: read-only — delegate to existing repository for the key set.
+            try:
+                csv_repo = build_csv_api_key_repository()
+                if csv_repo is not None:
+                    keys = csv_repo.load_keys()
+                    store._readonly_keys |= keys
+                    logger.info("Loaded %d API key(s) from Azure Blob Storage", len(keys))
+            except RuntimeError as exc:
+                logger.error("Failed to load API keys from Azure Blob: %s", exc)
+
+        return store
+
+    def _load_from_file(self) -> None:
+        assert self._file_path is not None
+        path = Path(self._file_path)
+        if not path.is_file():
+            logger.warning(
+                "FABRIC_MCP_API_KEYS_FILE=%s — file not found, no file keys loaded",
+                self._file_path,
+            )
+            return
+        text = path.read_text(encoding="utf-8")
+        entries, migrated = _parse_entries_csv(text)
+        self._file_entries = entries
+        logger.info("Loaded %d API key(s) from %s", len(entries), self._file_path)
+        if migrated:
+            self._write_file()
+            logger.info("Migrated %s to id,email,apikey format", self._file_path)
+
+    # ── auth check ────────────────────────────────────────────────────────────
+
+    def __contains__(self, key: str) -> bool:
+        with self._lock:
+            if key in self._readonly_keys:
+                return True
+            return any(e["key"] == key for e in self._file_entries)
+
+    def __bool__(self) -> bool:
+        with self._lock:
+            return bool(self._readonly_keys) or bool(self._file_entries)
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._readonly_keys) + len(self._file_entries)
+
+    # ── CRUD ──────────────────────────────────────────────────────────────────
+
+    def is_writable(self) -> bool:
+        """True when a file path is configured and mutations can be persisted."""
+        return self._file_path is not None
+
+    def list_entries(self) -> list[dict]:
+        """Return all entries safe for API responses (keys are masked)."""
+        with self._lock:
+            result = [
+                {"id": e["id"], "email": e["email"], "masked_key": _mask_key(e["key"])}
+                for e in self._file_entries
+            ]
+            if self._readonly_keys:
+                result.append({
+                    "id": None,
+                    "email": "(environment)",
+                    "masked_key": f"+{len(self._readonly_keys)} key(s) from FABRIC_MCP_API_KEYS",
+                    "readonly": True,
+                })
+            return result
+
+    def add(self, email: str, key: str) -> dict:
+        """Add a new entry, persist to file, return the masked entry dict."""
+        if not self._file_path:
+            raise ValueError("No writable key source — set FABRIC_MCP_API_KEYS_FILE to enable key management")
+        email = email.strip()
+        key = key.strip()
+        if not email or not key:
+            raise ValueError("email and key must not be empty")
+        entry = {"id": str(uuid.uuid4()), "email": email, "key": key}
+        with self._lock:
+            self._file_entries.append(entry)
+            self._write_file()
+        logger.info("Added API key for %s (id=%s)", email, entry["id"])
+        return {"id": entry["id"], "email": email, "masked_key": _mask_key(key)}
+
+    def remove(self, entry_id: str) -> bool:
+        """Remove an entry by ID, persist, return True if found."""
+        if not self._file_path:
+            raise ValueError("No writable key source — set FABRIC_MCP_API_KEYS_FILE to enable key management")
+        with self._lock:
+            before = len(self._file_entries)
+            self._file_entries = [e for e in self._file_entries if e["id"] != entry_id]
+            if len(self._file_entries) == before:
+                return False
+            self._write_file()
+        logger.info("Removed API key id=%s", entry_id)
+        return True
+
+    def _write_file(self) -> None:
+        """Rewrite the CSV file atomically (must be called with _lock held)."""
+        path = Path(self._file_path)  # type: ignore[arg-type]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        with tmp.open("w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=["id", "email", "apikey"])
+            writer.writeheader()
+            for e in self._file_entries:
+                writer.writerow({"id": e["id"], "email": e["email"], "apikey": e["key"]})
+        tmp.replace(path)
+        logger.debug("Wrote %d API key(s) to %s", len(self._file_entries), self._file_path)
+
+
+# ── Module-level store singleton (set by install_auth_middleware) ─────────────
+
+_current_store: MutableApiKeyStore | None = None
+
+
+def get_store() -> MutableApiKeyStore | None:
+    """Return the active :class:`MutableApiKeyStore`, or ``None`` if auth is disabled."""
+    return _current_store
+
+
+def _set_store(store: MutableApiKeyStore | None) -> None:
+    global _current_store
+    _current_store = store
+
+
+# ── Read-only repository hierarchy (kept for backward compat + tests) ─────────
 
 class ApiKeyRepository(ABC):
     """A source of valid MCP API keys."""
@@ -103,8 +310,16 @@ class LocalFileApiKeyRepository(CsvApiKeyRepository):
 
     def fetch_csv(self) -> str | None:
         if not self._path.is_file():
+            logger.warning("API keys file not found: %s", self._path)
             return None
-        return self._path.read_text(encoding="utf-8")
+        text = self._path.read_text(encoding="utf-8")
+        logger.debug("Read API keys CSV from %s", self._path)
+        return text
+
+    def load_keys(self) -> set[str]:
+        keys = super().load_keys()
+        logger.info("Loaded %d API key(s) from %s", len(keys), self._path)
+        return keys
 
 
 class AzureBlobApiKeyRepository(CsvApiKeyRepository):
@@ -264,4 +479,6 @@ def load_api_keys() -> set[str]:
     Single entry point for the auth layer — keeps key sourcing fully inside the
     repository module so the app/middleware stays decoupled from it.
     """
-    return build_api_key_repository().load_keys()
+    keys = build_api_key_repository().load_keys()
+    logger.info("load_api_keys: %d total key(s) across all sources", len(keys))
+    return keys

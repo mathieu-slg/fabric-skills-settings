@@ -271,7 +271,9 @@ def test_middleware_passes_non_http_scopes():
 
 class _FakeApp:
     def __init__(self):
+        from types import SimpleNamespace
         self.middlewares = []
+        self.state = SimpleNamespace()
 
     def add_middleware(self, cls, **kwargs):
         self.middlewares.append((cls, kwargs))
@@ -289,7 +291,8 @@ def test_install_auth_middleware_enabled_with_keys(monkeypatch):
     app = _FakeApp()
     assert install_auth_middleware(app) is True
     assert app.middlewares[0][0] is FabricAuthMiddleware
-    assert app.middlewares[0][1]["api_keys"] == {"key1"}
+    # api_keys is now a MutableApiKeyStore; check membership rather than equality
+    assert "key1" in app.middlewares[0][1]["api_keys"]
 
 
 def test_install_auth_middleware_disabled_without_keys(monkeypatch):
