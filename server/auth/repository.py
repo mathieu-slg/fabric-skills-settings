@@ -141,14 +141,22 @@ class MutableApiKeyStore:
 
         elif source in _AZURE_BLOB_ALIASES:
             # Azure Blob: read-only — delegate to existing repository for the key set.
-            try:
-                csv_repo = build_csv_api_key_repository()
-                if csv_repo is not None:
-                    keys = csv_repo.load_keys()
-                    store._readonly_keys |= keys
-                    logger.info("Loaded %d API key(s) from Azure Blob Storage", len(keys))
-            except RuntimeError as exc:
-                logger.error("Failed to load API keys from Azure Blob: %s", exc)
+            # Any RuntimeError from build_csv_api_key_repository() (missing env vars,
+            # missing SDK) is re-raised so a misconfigured Azure source fails startup
+            # rather than silently disabling auth.
+            csv_repo = build_csv_api_key_repository()
+            if csv_repo is not None:
+                keys = csv_repo.load_keys()
+                store._readonly_keys |= keys
+                logger.info("Loaded %d API key(s) from Azure Blob Storage", len(keys))
+
+        elif source:
+            # Unknown non-empty source value — fail closed.  An empty string is
+            # handled by _FILE_ALIASES above (defaults to file mode).
+            raise RuntimeError(
+                f"Unknown FABRIC_MCP_API_KEYS_SOURCE: {source!r} "
+                "(expected 'file' or 'azure-blob')."
+            )
 
         return store
 

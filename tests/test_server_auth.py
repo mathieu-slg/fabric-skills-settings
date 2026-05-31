@@ -316,6 +316,18 @@ def test_install_auth_middleware_disabled_without_keys(monkeypatch):
     assert app.middlewares == []
 
 
+def test_install_auth_middleware_clears_singleton_when_disabled(monkeypatch):
+    """get_store() must return None when auth is disabled, even after a prior run."""
+    from server.auth.repository import get_store, _set_store
+    # Seed a stale store.
+    from server.auth.repository import MutableApiKeyStore
+    _set_store(MutableApiKeyStore())
+
+    _clear_key_env(monkeypatch)  # no keys → auth disabled
+    assert install_auth_middleware(_FakeApp()) is False
+    assert get_store() is None  # stale store must be cleared
+
+
 def test_install_auth_middleware_requires_secret_when_keys_present(monkeypatch):
     _clear_key_env(monkeypatch)
     monkeypatch.setenv("FABRIC_MCP_API_KEYS", "key1")

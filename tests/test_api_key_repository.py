@@ -9,6 +9,7 @@ from server.auth.repository import (
     CompositeApiKeyRepository,
     EnvVarApiKeyRepository,
     LocalFileApiKeyRepository,
+    MutableApiKeyStore,
     build_api_key_repository,
     build_csv_api_key_repository,
     load_api_keys,
@@ -231,3 +232,58 @@ def test_load_api_keys_empty_when_not_configured():
 
 def test_build_api_key_repository_returns_composite():
     assert isinstance(build_api_key_repository(), CompositeApiKeyRepository)
+
+
+# ── MutableApiKeyStore.from_env — security boundary tests ────────────────────
+
+def test_mutable_store_unknown_source_raises(monkeypatch):
+    """Unknown FABRIC_MCP_API_KEYS_SOURCE must raise, not silently disable auth."""
+    monkeypatch.setenv("FABRIC_MCP_API_KEYS_SOURCE", "ftp")
+    with pytest.raises(RuntimeError, match="Unknown"):
+        MutableApiKeyStore.from_env()
+
+
+def test_mutable_store_azure_missing_config_raises(monkeypatch):
+    """Misconfigured Azure source must raise, not silently return an empty store."""
+    monkeypatch.setenv("FABRIC_MCP_API_KEYS_SOURCE", "azure-blob")
+    monkeypatch.setenv("FABRIC_MCP_API_KEYS_BLOB_NAME", "api-keys.csv")
+    monkeypatch.setenv("FABRIC_MCP_API_KEYS_BLOB_CONNECTION_STRING", "cs")
+    # Missing container — build_csv_api_key_repository raises; must propagate.
+    with pytest.raises(RuntimeError, match="CONTAINER"):
+        MutableApiKeyStore.from_env()
+
+
+def test_mutable_store_file_loads_and_contains(tmp_path, monkeypatch):
+    f = tmp_path / "api-keys.csv"
+    f.write_text(_CSV, encoding="utf-8")
+    monkeypatch.setenv("FABRIC_MCP_API_KEYS_FILE", str(f))
+    store = MutableApiKeyStore.from_env()
+    assert bool(store)
+    assert "keyA" in store
+    assert "keyB" in store
+    assert "unknown" not in store
+
+
+def test_mutable_store_add_and_remove(tmp_path, monkeypatch):
+    f = tmp_path / "api-keys.csv"
+    f.write_text(_CSV, encoding="utf-8")
+    monkeypatch.setenv("FABRIC_MCP_API_KEYS_FILE", str(f))
+    store = MutableApiKeyStore.from_env()
+
+    entry = store.add("carol@example.com", "keyC")
+    assert "keyC" in store
+    assert entry["email"] == "carol@example.com"
+    assert "keyC" not in entry["masked_key"]  # key must be masked
+
+    assert store.remove(entry["id"]) is True
+    assert "keyC" not in store
+    assert store.remove(entry["id"]) is False  # already gone
+
+
+def test_mutable_store_env_only_is_not_writable(monkeypatch):
+    monkeypatch.setenv("FABRIC_MCP_API_KEYS", "envkey")
+    store = MutableApiKeyStore.from_env()
+    assert "envkey" in store
+    assert not store.is_writable()
+    with pytest.raises(ValueError, match="writable"):
+        store.add("x@y.com", "newkey")

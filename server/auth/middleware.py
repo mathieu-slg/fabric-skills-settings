@@ -209,6 +209,10 @@ def install_auth_middleware(app) -> bool:
     :func:`~server.auth.repository._set_store` so admin API routes can access it
     without needing to traverse the ASGI middleware chain.
     """
+    # Reset the singleton first so a re-run with empty/changed config doesn't
+    # leave a stale store accessible via get_store() on unauthenticated instances.
+    _set_store(None)
+
     store = MutableApiKeyStore.from_env()
     if not store:
         logger.info("auth: no API keys configured — running without authentication")
