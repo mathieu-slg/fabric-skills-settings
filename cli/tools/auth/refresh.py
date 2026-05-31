@@ -28,6 +28,7 @@ import re
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -150,18 +151,59 @@ def _post(url: str, body: bytes, headers: dict[str, str]) -> tuple[int, dict]:
         raise SystemExit(f"Cannot reach MCP server at {url}: {exc}") from exc
 
 
-def _fetch_token(auth_base_url: str, api_key: str) -> tuple[str, float]:
-    """POST to {auth_base_url}/login, return (jwt, expires_at). Exits on failure."""
-    login_url = f"{auth_base_url}/login"
+def _discover_token_endpoint(server_url: str) -> str | None:
+    """Fetch /.well-known/oauth-authorization-server and return the token_endpoint.
+
+    Returns None if the endpoint is unreachable or the server has no OAuth2 AS.
+    """
+    discovery_url = f"{server_url}/.well-known/oauth-authorization-server"
+    req = urllib.request.Request(discovery_url, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status == 200:
+                meta = json.loads(resp.read().decode("utf-8"))
+                return meta.get("token_endpoint") or None
+    except Exception:
+        pass
+    return None
+
+
+def _fetch_token(server_url: str, api_key: str) -> tuple[str, float]:
+    """Exchange an API key for a JWT.
+
+    Discovers the token endpoint from the server's OAuth2 AS metadata
+    (``/.well-known/oauth-authorization-server``) and uses the standard
+    client_credentials grant. Falls back to the legacy JSON endpoint
+    (``{server_url}/api/auth/login``) for servers that pre-date OAuth2 support.
+    """
+    # ── OAuth2 client credentials — endpoint discovered at runtime ────────────
+    oauth_url = _discover_token_endpoint(server_url)
+    if oauth_url:
+        form_body = urllib.parse.urlencode({
+            "grant_type": "client_credentials",
+            "client_id": api_key,
+        }).encode("ascii")
+        status, body = _post(oauth_url, form_body, {"Content-Type": "application/x-www-form-urlencoded"})
+        if status == 200:
+            token = body.get("access_token", "")
+            if token:
+                expires_in = body.get("expires_in", 3600)
+                expires_at = body.get("expires_at") or (time.time() + expires_in)
+                return token, float(expires_at)
+        if status not in (404, 405):
+            raise SystemExit(f"OAuth2 token request failed ({status}): {body.get('error', body)}")
+
+    # ── Legacy JSON endpoint (backward compat) ────────────────────────────────
+    legacy_url = f"{server_url}/api/auth/login"
     status, body = _post(
-        login_url,
+        legacy_url,
         json.dumps({"api_key": api_key}).encode("utf-8"),
         {"Content-Type": "application/json"},
     )
     if status == 404:
         raise SystemExit(
-            f"Server returned 404 for {login_url} — auth may be disabled on this server.\n"
-            "Check FABRIC_MCP_API_KEY, MCP_SERVER_URL, and FABRIC_MCP_AUTH_URL."
+            f"No auth endpoint found at {server_url}.\n"
+            "Check FABRIC_MCP_API_KEY and MCP_SERVER_URL."
         )
     if status != 200:
         raise SystemExit(f"Login failed ({status}): {body.get('error', body)}")
@@ -258,8 +300,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  Token refreshed via {auth_base_url}/refresh")
 
     if not token:
-        token, expires_at = _fetch_token(auth_base_url, api_key)
-        print("  New JWT obtained from MCP server")
+        # _fetch_token tries OAuth2 client_credentials first, legacy JSON second.
+        token, expires_at = _fetch_token(server_url, api_key)
 
     _save_token(token, expires_at)
     update_mcp_json(ROOT, token)
