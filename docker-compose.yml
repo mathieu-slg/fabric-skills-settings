@@ -35,22 +35,29 @@ services:
       # CORS: allow requests from the frontend container and local browser.
       FABRIC_CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
       # ── Auth ──────────────────────────────────────────────────────────────
-      # Option A (simple, single-user dev): inline comma-separated keys.
-      #   Set FABRIC_MCP_API_KEYS in .env — auth disabled when empty.
+      # Recommended (multi-user, admin-UI manageable):
+      #   FABRIC_MCP_API_KEYS_SOURCE=sqlite
+      #   FABRIC_MCP_API_KEYS_DB=/config/api-keys.db
+      #   The ./config volume below is writable by the server user — no
+      #   permission headaches, atomic writes, no CSV parsing.
+      #
+      # Simple single-user dev: set FABRIC_MCP_API_KEYS=<key> in .env instead.
+      # Auth is disabled entirely when all key vars are empty.
+      #
+      # Legacy CSV file mode: FABRIC_MCP_API_KEYS_SOURCE=file
+      #                        FABRIC_MCP_API_KEYS_FILE=/config/api-keys.csv
+      #
+      # Azure Blob (needs 'server-azure' extra):
+      #   FABRIC_MCP_API_KEYS_SOURCE=azure-blob
+      #   FABRIC_MCP_API_KEYS_BLOB_CONTAINER=keys
+      #   FABRIC_MCP_API_KEYS_BLOB_NAME=api-keys.csv
+      #   FABRIC_MCP_API_KEYS_BLOB_CONNECTION_STRING=${AZURE_BLOB_CONN}
       FABRIC_MCP_API_KEYS: ${FABRIC_MCP_API_KEYS:-}
-      # Option B (multi-user / manageable via admin UI):
-      #   1. Set FABRIC_MCP_API_KEYS_SOURCE=file and FABRIC_MCP_API_KEYS_FILE=/config/api-keys.csv in .env
-      #   2. The ./config host directory is mounted at /config (writable by the server user).
-      #   3. The admin UI at /apikeys creates/deletes rows in that file live.
       FABRIC_MCP_API_KEYS_SOURCE: ${FABRIC_MCP_API_KEYS_SOURCE:-}
       FABRIC_MCP_API_KEYS_FILE: ${FABRIC_MCP_API_KEYS_FILE:-}
+      FABRIC_MCP_API_KEYS_DB: ${FABRIC_MCP_API_KEYS_DB:-}
       # Required when any keys are configured:
       FABRIC_MCP_JWT_SECRET: ${FABRIC_MCP_JWT_SECRET:-}
-      # ── Azure Blob Storage (needs 'server-azure' extra) ────────────────────
-      #   FABRIC_MCP_API_KEYS_SOURCE: azure-blob
-      #   FABRIC_MCP_API_KEYS_BLOB_CONTAINER: keys
-      #   FABRIC_MCP_API_KEYS_BLOB_NAME: api-keys.csv
-      #   FABRIC_MCP_API_KEYS_BLOB_CONNECTION_STRING: ${AZURE_BLOB_CONN}
     volumes:
       - ./server/data:/data
       - ./server/data/managed:/app/server/managed
