@@ -44,15 +44,6 @@ async def _auth_disabled(request: Request) -> JSONResponse:
     )
 
 
-def _resource_server_url() -> str:
-    configured = os.environ.get("MCP_SERVER_URL", "").strip().rstrip("/")
-    if configured:
-        return configured
-    host = os.environ.get("HOST", "127.0.0.1").strip() or "127.0.0.1"
-    port = os.environ.get("PORT", "8000").strip() or "8000"
-    public_host = "127.0.0.1" if host in {"0.0.0.0", "::"} else host
-    return f"http://{public_host}:{port}"
-
 
 def build_app():
     """Construct the FastMCP app, register every tool, return the ASGI app.

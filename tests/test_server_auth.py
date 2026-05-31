@@ -6,7 +6,6 @@ import time
 import jwt
 import pytest
 
-from server.app import _resource_server_url
 from server.auth import (
     FabricAuthMiddleware,
     JtiStore,
@@ -363,15 +362,3 @@ def test_middleware_login_rate_limit_blocks_after_max_attempts():
 
     # Clean up to avoid affecting other tests.
     del _login_attempts[unique_ip]
-
-
-# ── _resource_server_url ─────────────────────────────────────────────────────
-
-def test_resource_server_url_uses_public_host_fallback(monkeypatch):
-    monkeypatch.delenv("MCP_SERVER_URL", raising=False)
-    monkeypatch.setenv("HOST", "0.0.0.0")
-    monkeypatch.setenv("PORT", "8000")
-    assert _resource_server_url() == "http://127.0.0.1:8000"
-
-    monkeypatch.setenv("MCP_SERVER_URL", "https://fabric.example.com/")
-    assert _resource_server_url() == "https://fabric.example.com"
