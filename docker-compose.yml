@@ -31,9 +31,14 @@ services:
       PORT: "8000"
       HOST: "0.0.0.0"
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Public URL of this server — used by FastMCP OAuth discovery and by the
+      # auth/refresh CLI tool. MUST be set in .env for any non-localhost deployment.
+      # Example: MCP_SERVER_URL=https://scardoso-lu.duckdns.org
       MCP_SERVER_URL: ${MCP_SERVER_URL:-http://127.0.0.1:8000}
-      # CORS: allow requests from the frontend container and local browser.
-      FABRIC_CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
+      # CORS: allow requests from the frontend and any direct browser clients.
+      # For production behind nginx set FABRIC_CORS_ORIGINS in .env, e.g.:
+      #   FABRIC_CORS_ORIGINS=https://scardoso-lu.duckdns.org,http://localhost:3000
+      FABRIC_CORS_ORIGINS: ${FABRIC_CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       # ── Auth ──────────────────────────────────────────────────────────────
       # Recommended (multi-user, admin-UI manageable):
       #   FABRIC_MCP_API_KEYS_SOURCE=sqlite
