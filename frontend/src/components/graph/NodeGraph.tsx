@@ -88,12 +88,12 @@ function PeerNodeComp({ data }: { data: PeerData }) {
         width: 48,
         height: 48,
         borderRadius: "50%",
-        background: "#1f2937",
+        background: "#1e293b",
         border: `2px solid ${color}`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        color: "#9ca3af",
+        color: "#cbd5e1",
         fontSize: 9,
         textAlign: "center",
         padding: 4,
@@ -224,7 +224,7 @@ export function NodeGraph({ node, onSelectNode }: NodeGraphProps) {
         panOnScroll
         zoomOnScroll={false}
       >
-        <Background color="#374151" gap={20} />
+        <Background color="#334155" gap={20} />
         <Controls showInteractive={false} />
       </ReactFlow>
       {truncated && (

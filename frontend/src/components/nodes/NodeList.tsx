@@ -1,6 +1,6 @@
 "use client";
 
-import { kindBadgeClass, managedBadge } from "@/lib/utils";
+import { kindBadgeClass } from "@/lib/utils";
 import type { GraphNode } from "@/lib/types";
 
 interface NodeListProps {
@@ -26,44 +26,52 @@ export function NodeList({
 
   if (filtered.length === 0) {
     return (
-      <div className="text-base-content/50 text-sm p-4 text-center">
+      <div className="text-slate-400 text-xs p-4 text-center italic">
         No nodes found
       </div>
     );
   }
 
   return (
-    <ul className="menu menu-sm gap-0.5 p-0 w-full">
-      {filtered.map((node) => (
-        <li key={node.id}>
-          <button
-            type="button"
-            className={`flex flex-col items-start gap-0.5 text-left w-full rounded-lg px-3 py-2 ${
-              selectedId === node.id ? "active" : ""
-            }`}
-            onClick={() => onSelect(node)}
-          >
-            <span className="font-medium text-sm truncate w-full">
-              {node.title}
-            </span>
-            {node.description && (
-              <span className="text-xs text-base-content/60 truncate w-full">
-                {node.description}
-              </span>
-            )}
-            <span className="flex gap-1 mt-0.5">
+    <ul className="flex flex-col gap-0.5 p-0 w-full">
+      {filtered.map((node) => {
+        const isSelected = selectedId === node.id;
+        return (
+          <li key={node.id}>
+            <button
+              type="button"
+              className="flex flex-col items-start gap-1 text-left w-full rounded-lg px-2.5 py-2 transition-colors"
+              style={{
+                background: isSelected ? "#eff6ff" : "transparent",
+                borderLeft: isSelected ? "2px solid #2563eb" : "2px solid transparent",
+              }}
+              onClick={() => onSelect(node)}
+            >
               <span
-                className={`badge badge-xs ${kindBadgeClass(node.kind)}`}
+                className="font-medium text-sm truncate w-full"
+                style={{ color: isSelected ? "#1d4ed8" : "#1e293b" }}
               >
-                {node.kind}
+                {node.title}
               </span>
-              <span className={`badge badge-xs ${managedBadge(node.managed)}`}>
-                {node.managed ? "managed" : "bundled"}
-              </span>
-            </span>
-          </button>
-        </li>
-      ))}
+              {node.description && (
+                <span className="text-xs text-slate-400 truncate w-full leading-tight">
+                  {node.description}
+                </span>
+              )}
+              <div className="flex gap-1 mt-0.5">
+                <span className={`badge badge-xs ${kindBadgeClass(node.kind)}`}>
+                  {node.kind}
+                </span>
+                {node.managed && (
+                  <span className="badge badge-xs badge-ghost text-slate-400">
+                    managed
+                  </span>
+                )}
+              </div>
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }

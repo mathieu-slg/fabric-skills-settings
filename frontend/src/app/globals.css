@@ -7,6 +7,33 @@ body {
   height: 100%;
 }
 
+/* Enterprise scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
 .prose pre {
-  @apply bg-base-300 rounded-lg p-4 overflow-x-auto;
+  @apply bg-slate-100 rounded-lg p-4 overflow-x-auto border border-slate-200;
+}
+
+.table th {
+  font-weight: 600;
 }
