@@ -21,7 +21,7 @@ links:
 
 # Skills index
 
-Use these skills via the Claude Code skill machinery (`.claude/skills/<name>/SKILL.md`) or the Codex skill loader (`.agents/skills/<name>/SKILL.md`).
+Skills are served through the knowledge graph — fetch one with `graph_get_node('skills/<name>')`; long skills link onward to their `sections/` nodes. Skill files are not installed into target repos.
 
 - `rtk` — token-optimizing shell proxy. Prefix every shell command with `rtk` (Claude Code applies it automatically via the Bash hook). See [[skills/rtk]].
 - `fabric-ingest` — source-to-Bronze ingestion. See [[skills/fabric-ingest]].

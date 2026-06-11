@@ -9,6 +9,9 @@ tools:
   - Bash
   - Glob
   - Grep
+  - mcp__fabric-server__graph_get_node
+  - mcp__fabric-server__graph_get_linked
+  - mcp__fabric-server__graph_search
 ---
 
 # Operator

@@ -4,6 +4,7 @@ description: Per-session read order after the setup gate passes. Lists what to t
 kind: content
 links:
   - graph-content/session/operating-rules
+  - graph-content/session/agent-routing
   - graph-content/layout/directory-layout
   - graph-content/layout/tool-layout
   - graph-content/workflow/notebook-workflow
@@ -15,7 +16,7 @@ links:
 
 After the setup gate ([[graph-content/entry]]) passes, use the graph MCP server as the project knowledge interface. Do not read project markdown files under `memory/` directly just to discover context; those files are graph backing storage.
 
-Use the graph tools with their full MCP names as exposed by the client, for example Codex `mcp__fabric_graph__.graph_get_entry` / `graph_get_node` / `graph_get_linked` / `graph_search`, or the equivalent `fabric-graph` MCP tool names in other clients.
+Use the graph tools with their full MCP names as exposed by the client: `mcp__fabric-server__graph_get_entry` / `graph_get_node` / `graph_get_linked` / `graph_search` in Claude Code, `mcp__fabric_server__graph_get_entry` in Codex, or the equivalent `fabric-server` MCP tool names in other clients.
 
 Traversal order before addressing the user's request:
 
@@ -34,6 +35,7 @@ Graph write rules:
 
 From here, the next traversal step depends on the request:
 
+- Delegating work to the developer, tester, or operator subagents → [[graph-content/session/agent-routing]]
 - Authoring or modifying notebooks → [[graph-content/workflow/notebook-workflow]]
 - Where things live on disk → [[graph-content/layout/directory-layout]]
 - Which tool to invoke for what → [[graph-content/layout/tool-layout]]

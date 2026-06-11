@@ -1,0 +1,43 @@
+# Runs the full test suite — including the source-package validators
+# (tests/test_install_package.py, tests/test_agent_guidance.py) — on every
+# pull request and push to main, so harness invariants gate merges instead
+# of only being checked at release time.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # hatch-vcs derives the version from tags — full history is required.
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies (dev group + all extras)
+        run: uv sync --group dev --all-extras
+
+      - name: Run tests + source-package validators
+        run: uv run --group dev pytest
+
+      - name: Build wheel and verify console scripts
+        run: |
+          uv build
+          ep="$(unzip -p dist/*.whl '*/entry_points.txt')"
+          echo "$ep"
+          for script in fabric-vibecoding-agents fabric-vibe; do
+            echo "$ep" | grep -q "^$script = " || { echo "missing console script: $script"; exit 1; }
+          done

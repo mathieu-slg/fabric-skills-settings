@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "rtk hook claude"
+            "command": "command -v rtk >/dev/null 2>&1 && rtk hook claude || true"
           }
         ]
       }
@@ -36,6 +36,8 @@
   },
   "permissions": {
     "deny": [
+      "Bash(fab *)",
+      "Bash(fabric-vibe setup*)",
       "Read(.env)",
       "Read(.env.*)",
       "Read(**/.env)",
@@ -61,9 +63,7 @@
       "mcp__fabric-server__graph_list_kinds",
       "mcp__fabric-server__graph_create_node",
       "mcp__fabric-server__graph_update_node",
-      "mcp__fabric-server__graph_delete_node",
       "mcp__fabric-server__graph_add_edge",
-      "mcp__fabric-server__graph_remove_edge",
       "mcp__fabric-server__pipeline_lineage_check",
       "mcp__fabric-server__data_mock_generate",
       "mcp__fabric-server__semantic_model_list",

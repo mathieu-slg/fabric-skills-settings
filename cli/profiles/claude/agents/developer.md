@@ -17,6 +17,17 @@ tools:
   - Bash
   - Glob
   - Grep
+  - mcp__fabric-server__graph_get_entry
+  - mcp__fabric-server__graph_get_node
+  - mcp__fabric-server__graph_get_linked
+  - mcp__fabric-server__graph_search
+  - mcp__fabric-server__graph_create_node
+  - mcp__fabric-server__graph_update_node
+  - mcp__fabric-server__graph_add_edge
+  - mcp__fabric-server__pipeline_lineage_check
+  - mcp__fabric-server__data_mock_generate
+  - mcp__fabric-server__semantic_model_list
+  - mcp__fabric-server__semantic_model_show
 skills:
   - fabric-ingest
   - fabric-transform

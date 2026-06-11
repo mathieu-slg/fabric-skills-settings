@@ -8,6 +8,8 @@ graph-content nodes. Call `collect_errors(root)`; empty list means valid.
 
 from __future__ import annotations
 
+import json
+import re
 from pathlib import Path
 
 REQUIRED_SKILLS = {
@@ -46,6 +48,46 @@ PROFILE_FORBIDDEN_SECTION_NAMES = [
     "## Semantic Models",
     "## Workspace Management",
 ]
+# Auto-allowing these would let a misfire destroy graph knowledge or bypass
+# the human-owned bootstrap; they must stay ask-per-use / denied.
+SETTINGS_FORBIDDEN_ALLOW = (
+    "Bash(fab *)",
+    "Bash(rtk *)",
+    "mcp__fabric__fabric_api_get",
+    "mcp__fabric-server__graph_delete_node",
+    "mcp__fabric-server__graph_remove_edge",
+)
+SETTINGS_REQUIRED_DENY = (
+    "Bash(fab *)",
+    "Bash(fabric-vibe setup*)",
+)
+# Canonical MCP exposure: `fabric-server` (hyphen) in Claude Code,
+# `fabric_server` (underscore) in Codex. Anything else is a stale name that
+# makes the mandatory first tool call fail.
+MCP_FORBIDDEN_TOKENS = (
+    "mcp__fabric_graph",
+    "mcp__fabric-graph",
+    "fabric-graph",
+    "mcp__fabric_server__.",
+    "mcp__fabric-server__.",
+)
+FABRIC_SERVER_TOOLS = (
+    "graph_get_entry",
+    "graph_get_node",
+    "graph_get_linked",
+    "graph_search",
+    "graph_list_kinds",
+    "graph_create_node",
+    "graph_update_node",
+    "graph_delete_node",
+    "graph_add_edge",
+    "graph_remove_edge",
+    "pipeline_lineage_check",
+    "data_mock_generate",
+    "semantic_model_list",
+    "semantic_model_show",
+)
+_FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\n(.*)\Z", re.DOTALL)
 
 
 def _skill_names(base: Path) -> set[str]:
@@ -134,11 +176,23 @@ class _Validator:
 
         settings = r / "cli" / "profiles" / "claude" / "settings.local.json"
         if settings.exists():
-            text = settings.read_text(errors="ignore")
-            for phrase in ("Bash(fab *)", "Bash(rtk *)", "mcp__fabric__fabric_api_get"):
-                if phrase in text:
+            try:
+                data = json.loads(settings.read_text(errors="ignore"))
+            except json.JSONDecodeError as exc:
+                self.errors.append(f"{self._rel(settings)} is not valid JSON: {exc}")
+                return
+            permissions = data.get("permissions", {})
+            allow = permissions.get("allow", [])
+            deny = permissions.get("deny", [])
+            for phrase in SETTINGS_FORBIDDEN_ALLOW:
+                if phrase in allow:
                     self.errors.append(
                         f"{self._rel(settings)} must not allow {phrase!r}; agents consume only the safe sandbox workspace"
+                    )
+            for phrase in SETTINGS_REQUIRED_DENY:
+                if phrase not in deny:
+                    self.errors.append(
+                        f"{self._rel(settings)} must deny {phrase!r}; this prohibition is harness-level, not prompt-level"
                     )
 
     def profile_minimalism(self) -> None:
@@ -202,6 +256,12 @@ class _Validator:
         for skill in REQUIRED_SKILLS:
             if f"`{skill}`" not in text:
                 self.errors.append(f"{self._rel(self.skills_index_file)} must list installed skill `{skill}`")
+        for stale in (".claude/skills/", ".agents/skills/"):
+            if stale in text:
+                self.errors.append(
+                    f"{self._rel(self.skills_index_file)} references installed skill path {stale!r};"
+                    " skills are graph-served, not shipped to target repos"
+                )
 
     def session_nodes(self) -> None:
         if not self.operating_rules_file.exists():
@@ -221,6 +281,76 @@ class _Validator:
             if phrase in text:
                 self.errors.append(
                     f"{self._rel(path)} must reference the MCP fabric_* tools instead of raw {phrase!r}"
+                )
+
+    def rtk_node_uses_wrapper(self) -> None:
+        path = self.graph_content / "integrations" / "rtk.md"
+        if not path.exists():
+            return
+        text = path.read_text(errors="ignore")
+        for phrase in ("fab api ", "fab auth", "fab --version"):
+            if phrase in text:
+                self.errors.append(
+                    f"{self._rel(path)} references direct fab usage {phrase!r};"
+                    " all Fabric access goes through fabric-vibe and the MCP tools"
+                )
+
+    def mcp_canonical_names(self) -> None:
+        """Stale or malformed MCP server/tool names cause failed first tool calls."""
+        scan = list(self.profile_files)
+        scan.extend(sorted(self.graph_content.rglob("*.md")))
+        scan.extend(sorted((self.root / "cli" / "profiles" / "claude" / "agents").glob("*.md")))
+        for path in scan:
+            if not path.exists():
+                continue
+            text = path.read_text(errors="ignore")
+            for token in MCP_FORBIDDEN_TOKENS:
+                if token in text:
+                    self.errors.append(
+                        f"{self._rel(path)} contains non-canonical MCP name {token!r};"
+                        " use mcp__fabric-server__<tool> (Claude) or mcp__fabric_server__<tool> (Codex)"
+                    )
+
+    def agent_mcp_tool_wiring(self) -> None:
+        """Every fabric-server tool an agent's body mandates must be granted in its
+        `tools:` frontmatter — a declared tools list excludes MCP tools by default."""
+        agents_dir = self.root / "cli" / "profiles" / "claude" / "agents"
+        if not agents_dir.exists():
+            return
+        token_re = re.compile(r"\b(" + "|".join(FABRIC_SERVER_TOOLS) + r")\b")
+        for path in sorted(agents_dir.glob("*.md")):
+            match = _FRONTMATTER_RE.match(path.read_text(errors="ignore"))
+            if match is None:
+                self.errors.append(f"{self._rel(path)} has no parseable YAML frontmatter")
+                continue
+            frontmatter, body = match.groups()
+            if "tools:" not in frontmatter:
+                continue  # no tools restriction → agent inherits all tools incl. MCP
+            for tool in sorted(set(token_re.findall(body))):
+                if f"mcp__fabric-server__{tool}" not in frontmatter:
+                    self.errors.append(
+                        f"{self._rel(path)} body references {tool!r} but its tools list"
+                        f" does not grant mcp__fabric-server__{tool}"
+                    )
+
+    def agent_routing_node(self) -> None:
+        """Routing is executed by the main thread; the state machine must live in the
+        graph and be reachable from session-start, with both orchestrators pointing at it."""
+        routing = self.graph_content / "session" / "agent-routing.md"
+        if not routing.exists():
+            self.errors.append(f"missing agent-routing node: {self._rel(routing)}")
+            return
+        session_start = self.graph_content / "session" / "session-start.md"
+        if session_start.exists() and "agent-routing" not in session_start.read_text(errors="ignore"):
+            self.errors.append(f"{self._rel(session_start)} must link graph-content/session/agent-routing")
+        for path in (
+            self.root / "cli" / "profiles" / "claude" / "agents" / "orchestrator.md",
+            self.root / "cli" / "profiles" / "codex" / "agents" / "orchestrator.toml",
+        ):
+            if path.exists() and "graph-content/session/agent-routing" not in path.read_text(errors="ignore"):
+                self.errors.append(
+                    f"{self._rel(path)} must fetch the routing state machine from"
+                    " graph-content/session/agent-routing"
                 )
 
     def skill_wiring(self) -> None:
@@ -255,6 +385,10 @@ class _Validator:
         self.skills_index_node()
         self.session_nodes()
         self.platform_rules_use_wrapper()
+        self.rtk_node_uses_wrapper()
+        self.mcp_canonical_names()
+        self.agent_mcp_tool_wiring()
+        self.agent_routing_node()
         self.skill_wiring()
         self.no_root_runtime()
         return self.errors

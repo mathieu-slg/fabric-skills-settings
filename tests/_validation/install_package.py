@@ -6,6 +6,7 @@ Call `collect_errors(root)`; an empty list means the layout is valid.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -160,9 +161,14 @@ class _Validator:
     def safe_datalake_controls(self) -> None:
         settings = self.profiles / "claude" / "settings.local.json"
         if settings.exists():
-            text = settings.read_text(errors="ignore")
+            try:
+                data = json.loads(settings.read_text(errors="ignore"))
+            except json.JSONDecodeError as exc:
+                self.errors.append(f"{self._rel(settings)} is not valid JSON: {exc}")
+                return
+            allow = data.get("permissions", {}).get("allow", [])
             for phrase in ("Bash(fab *)", "Bash(rtk *)", "mcp__fabric__fabric_api_get"):
-                if phrase in text:
+                if phrase in allow:
                     self.errors.append(f"Unsafe agent permission {phrase!r} in {self._rel(settings)}")
 
     def env_example(self) -> None:
