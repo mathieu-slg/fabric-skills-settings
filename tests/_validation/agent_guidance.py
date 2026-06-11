@@ -300,6 +300,8 @@ class _Validator:
         scan = list(self.profile_files)
         scan.extend(sorted(self.graph_content.rglob("*.md")))
         scan.extend(sorted((self.root / "cli" / "profiles" / "claude" / "agents").glob("*.md")))
+        scan.extend(sorted((self.root / "cli" / "profiles" / "codex" / "agents").glob("*.toml")))
+        scan.append(self.root / "cli" / "profiles" / "codex" / "config.toml")
         for path in scan:
             if not path.exists():
                 continue
