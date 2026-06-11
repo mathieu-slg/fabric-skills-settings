@@ -9,6 +9,12 @@ tools:
   - Bash
   - Glob
   - Grep
+  - mcp__fabric-server__graph_get_node
+  - mcp__fabric-server__graph_get_linked
+  - mcp__fabric-server__graph_search
+  - mcp__fabric-server__graph_create_node
+  - mcp__fabric-server__graph_update_node
+  - mcp__fabric-server__semantic_model_show
 skills:
   - fabric-validate
   - fabric-ops
@@ -29,7 +35,7 @@ skills:
 
 ---
 
-Validate independently. The **fabric-validate** skill is owned by tester; fetch its workflow with `graph_get_node('skills/fabric-validate')` before writing or running DQ checks. Use `graph_get_node('skills/fabric-ops')` to look up lakehouse-inspection patterns when checking for schema drift or contract alignment, and run `fabric-vibe lakehouse list-tables` from the project root to read current schemas.
+Validate independently. You run and assess checks; authoring DQ notebooks is developer work — if a needed check does not exist, report that to the orchestrator instead of writing it. The **fabric-validate** skill is owned by tester; fetch its workflow with `graph_get_node('skills/fabric-validate')` before running DQ checks. Use `graph_get_node('skills/fabric-ops')` to look up lakehouse-inspection patterns when checking for schema drift or contract alignment, and run `fabric-vibe lakehouse list-tables` from the project root to read current schemas.
 
 Minimum checks when applicable:
 

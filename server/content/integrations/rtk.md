@@ -12,6 +12,6 @@ RTK reduces shell output token consumption. It is installed by `fabric-vibe setu
 
 Claude Code sessions handle RTK automatically through the Bash hook; no manual command prefix is required.
 
-Drive Fabric work through the `fabric-vibe` proxy (e.g. `fabric-vibe workspace init`, `fabric-vibe notebook deploy`) and the `fabric-server` MCP tools rather than ad-hoc `fab` calls. The setup gate's `fab --version` / `fab api workspaces` probes are the only direct `fab` use.
+Drive Fabric work through the `fabric-vibe` proxy (e.g. `fabric-vibe workspace init`, `fabric-vibe notebook deploy`) and the `fabric-server` MCP tools. Direct `fab` invocations are never permitted — they are denied at the harness level.
 
 For the full RTK command reference and analytics commands, see [[skills/rtk]].

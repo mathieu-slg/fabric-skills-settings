@@ -34,15 +34,22 @@ def _make_baseline_source_repo(root: Path) -> None:
     (root / "cli" / "profiles" / "claude" / "agents").mkdir(parents=True, exist_ok=True)
     (root / "cli" / "profiles" / "codex" / "agents").mkdir(parents=True, exist_ok=True)
     for agent in ["orchestrator", "developer", "tester", "operator"]:
+        routing_ref = (
+            "graph-content/session/agent-routing\n" if agent == "orchestrator" else ""
+        )
         (root / "cli" / "profiles" / "claude" / "agents" / f"{agent}.md").write_text(
-            f"# {agent}\nfabric-transform fabric-model fabric-validate tester\n"
+            f"---\nname: {agent}\ntools:\n  - Read\n---\n"
+            f"# {agent}\nfabric-transform fabric-model fabric-validate tester\n{routing_ref}"
         )
         (root / "cli" / "profiles" / "codex" / "agents" / f"{agent}.toml").write_text(
             f"name = '{agent}'\n# fabric-transform fabric-model fabric-validate tester\n"
+            + (f"# {routing_ref}" if routing_ref else "")
         )
 
     (root / "cli" / "profiles" / "codex" / "config.toml").write_text("")
-    (root / "cli" / "profiles" / "claude" / "settings.local.json").write_text("{}")
+    (root / "cli" / "profiles" / "claude" / "settings.local.json").write_text(
+        '{"permissions": {"allow": [], "deny": ["Bash(fab *)", "Bash(fabric-vibe setup*)"]}}'
+    )
     content_rules = root / "server" / "content" / "rules"
     content_rules.mkdir(parents=True, exist_ok=True)
     (content_rules / "data-engineering.md").write_text("# DE\nfabric-transform fabric-validate\n")
@@ -63,6 +70,9 @@ def _make_baseline_source_repo(root: Path) -> None:
     )
     (gc / "session" / "operating-rules.md").write_text(
         "# rules\nrules/security rules/data-engineering rules/fabric-platform\n"
+    )
+    (gc / "session" / "agent-routing.md").write_text(
+        "# Agent routing\nHub-and-spoke routing executed by the main thread.\n"
     )
     (gc / "entry.md").write_text(
         "# entry\n"
